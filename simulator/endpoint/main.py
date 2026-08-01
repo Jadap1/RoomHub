@@ -1,6 +1,7 @@
 import asyncio
 import json
 import websockets
+import sys
 
 from protocol import create_message, encode_message
 from runtime import EndpointRuntime
@@ -44,6 +45,9 @@ async def heartbeat_loop(websocket):
             target="roomhub-core",
             payload=runtime.state.as_dict()
         )
+        print(registration)
+        print("Sending Heartbeat:")
+        print(heartbeat)
 
         await websocket.send(
             encode_message(heartbeat)
@@ -65,6 +69,58 @@ async def receive_loop(websocket):
 
         await runtime.handle_message(message)
 
+async def keyboard_loop():
+
+    while True:
+
+        key = await asyncio.to_thread(
+            input,
+            "\nPress 1/2/3: "
+        )
+
+        if key == "1":
+
+            await runtime.input.send_event(
+                "input.button",
+                {
+                    "button": "doorbell"
+                }
+            )
+
+
+        elif key == "2":
+
+            await runtime.input.send_event(
+                "input.button",
+                {
+                    "button": "lights"
+                }
+            )
+
+
+        elif key == "3":
+
+            await runtime.input.send_event(
+                "input.button",
+                {
+                    "button": "music"
+                }
+            )
+
+
+        else:
+
+            print("Unknown key")
+async def test_input():
+
+    while True:
+
+        await asyncio.sleep(15)
+
+        await runtime.input.button_press(
+            "home"
+        )
+
 
 async def main():
 
@@ -72,6 +128,13 @@ async def main():
 
         print("Connected to RoomHub Core")
 
+        runtime.attach_input(
+            websocket,
+            DEVICE_ID
+        )
+
+        print("Sending:")
+        print(registration)
 
         await websocket.send(
             encode_message(registration)
@@ -86,6 +149,9 @@ async def main():
 
         asyncio.create_task(
             heartbeat_loop(websocket)
+        )
+        asyncio.create_task(
+            keyboard_loop()
         )
 
 

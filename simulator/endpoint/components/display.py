@@ -1,7 +1,31 @@
+from screens.home import HomeScreen
+
+
 class DisplayComponent:
 
-    def show(self, screen):
+    def __init__(self):
 
-        print(
-            f"[DISPLAY] Showing screen: {screen}"
-        )
+        self.current_screen = None
+        self.state = None
+
+        self.screens = {
+            "home": HomeScreen()
+        }
+
+
+    async def show(self, screen_name, state):
+
+        self.state = state
+
+        screen = self.screens.get(screen_name)
+
+        if not screen:
+            print(f"[DISPLAY] Unknown screen {screen_name}")
+            return
+
+        self.current_screen = screen
+        self.state.current_screen = screen_name
+
+        print(f"[DISPLAY] Showing {screen_name}")
+
+        screen.render(state)

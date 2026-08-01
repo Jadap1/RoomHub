@@ -1,5 +1,6 @@
 from .endpoint_handler import handle_endpoint_register
 from .heartbeat_handler import handle_heartbeat
+from .input_handler import handle_input
 
 
 async def dispatch(message):
@@ -15,6 +16,10 @@ async def dispatch(message):
     elif message_type == "endpoint.heartbeat":
 
         return await handle_heartbeat(message)
+
+    elif message_type == "input.button":
+
+        return await handle_input(message)
 
 
     return {

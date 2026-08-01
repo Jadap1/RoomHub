@@ -1,5 +1,6 @@
 from state import EndpointState
 from components.display import DisplayComponent
+from components.input import InputComponent
 
 
 class EndpointRuntime:
@@ -9,6 +10,16 @@ class EndpointRuntime:
         self.state = EndpointState()
 
         self.display = DisplayComponent()
+
+        self.input = None
+
+
+    def attach_input(self, websocket, device_id):
+
+        self.input = InputComponent(
+            websocket,
+            device_id
+        )
 
 
     async def handle_message(self, message):
@@ -25,6 +36,10 @@ class EndpointRuntime:
 
             await self.handle_heartbeat_ack(message)
 
+        elif message_type == "input.received":
+
+            await self.handle_input_received(message)
+
 
         else:
 
@@ -35,9 +50,10 @@ class EndpointRuntime:
 
     async def handle_display(self, message):
 
-        screen = message["payload"].get("screen")
-
-        self.display.show(screen)
+        await self.display.show(
+            message["payload"]["screen"],
+            self.state
+        )
 
 
     async def handle_heartbeat_ack(self, message):
@@ -47,3 +63,16 @@ class EndpointRuntime:
         print(
             f"[HEARTBEAT] Acknowledged at {timestamp}"
         )
+    async def handle_input_ack(self, message):
+
+        print(
+        "[INPUT] Core acknowledged event"
+    ) 
+    async def handle_input_received(self, message):
+
+        status = message["payload"].get("status")
+
+        print(
+        f"[INPUT] Server acknowledged input: {status}"
+    )
+    
