@@ -1,4 +1,5 @@
 from .endpoint_handler import handle_endpoint_register
+from .heartbeat_handler import handle_heartbeat
 
 
 async def dispatch(message):
@@ -9,6 +10,11 @@ async def dispatch(message):
     if message_type == "endpoint.register":
 
         return await handle_endpoint_register(message)
+
+
+    elif message_type == "endpoint.heartbeat":
+
+        return await handle_heartbeat(message)
 
 
     return {

@@ -6,6 +6,7 @@ from .services.endpoint_service import register_endpoint
 from .core.registry import registry
 from .handlers.dispatcher import dispatch
 from .core.connection_manager import manager
+from .core.command_manager import send_command
 
 app = FastAPI(
     title=PROJECT_NAME,
@@ -52,6 +53,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     websocket
                 )
 
+
+            response = await dispatch(message)
 
             await websocket.send_json(response)
 
