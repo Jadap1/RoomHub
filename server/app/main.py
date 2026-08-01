@@ -12,6 +12,8 @@ from .core.state_manager import state_manager
 from .core.command_registry import register_commands
 from .core.entity_registry_init import register_entities
 from .core.entity_registry import entity_registry
+from .core.database import initialise_database
+from .core.entity_registry import entity_registry
 
 register_commands()
 
@@ -19,6 +21,10 @@ app = FastAPI(
     title=PROJECT_NAME,
     version=VERSION
 )
+
+initialise_database()
+
+entity_registry.load()
 
 register_entities()
 

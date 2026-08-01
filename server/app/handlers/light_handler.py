@@ -30,6 +30,8 @@ async def handle_light_toggle(message):
     else:
 
         entity.state = "off"
+        
+    entity_registry.save(entity) 
 
 
     print(
