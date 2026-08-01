@@ -1,23 +1,30 @@
 import asyncio
-import json
 import websockets
 
+from protocol import create_message, encode_message
 
-SERVER = "ws://localhost:8000/ws"
+
+SERVER = "ws://127.0.0.1:8000/ws"
+
+DEVICE_ID = "kitchen-test-panel"
 
 
-endpoint = {
-    "type": "register",
-    "device_id": "kitchen-test-panel",
-    "device_name": "Kitchen Test Panel",
-    "room": "Kitchen",
-    "capabilities": [
-        "display",
-        "speaker",
-        "microphone",
-        "touch"
-    ]
-}
+registration = create_message(
+    message_type="endpoint.register",
+    source=DEVICE_ID,
+    target="roomhub-core",
+    payload={
+        "device_id": DEVICE_ID,
+        "device_name": "Kitchen Test Panel",
+        "room": "Kitchen",
+        "capabilities": [
+            "display",
+            "speaker",
+            "microphone",
+            "touch"
+        ]
+    }
+)
 
 
 async def main():
@@ -27,7 +34,7 @@ async def main():
         print("Connected to RoomHub Core")
 
         await websocket.send(
-            json.dumps(endpoint)
+            encode_message(registration)
         )
 
         response = await websocket.recv()

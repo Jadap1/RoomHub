@@ -4,7 +4,7 @@ import json
 from .config import PROJECT_NAME, VERSION
 from .services.endpoint_service import register_endpoint
 from .core.registry import registry
-
+from .handlers.dispatcher import dispatch
 
 app = FastAPI(
     title=PROJECT_NAME,
@@ -40,17 +40,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
             message = json.loads(data)
 
-            if message["type"] == "register":
+            response = await dispatch(message)
 
-                endpoint_id = message["device_id"]
-
-                endpoint = register_endpoint(message)
-
-                await websocket.send_json({
-                    "type": "registered",
-                    "room": endpoint.room,
-                    "server": PROJECT_NAME
-                })
+            await websocket.send_json(response)
 
 
     except WebSocketDisconnect:
