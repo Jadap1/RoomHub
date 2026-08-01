@@ -1,13 +1,15 @@
 from ..models.entity import Entity
+from .entity_state import EntityState
 from .database import get_connection
 
 
 class EntityRegistry:
 
-
     def __init__(self):
 
         self.entities = {}
+
+        self.states = {}
 
 
     def register(self, entity: Entity):
@@ -15,6 +17,10 @@ class EntityRegistry:
         self.entities[
             entity.entity_id
         ] = entity
+
+        self.states[
+            entity.entity_id
+        ] = EntityState()
 
         self.save(entity)
 
@@ -32,26 +38,22 @@ class EntityRegistry:
 
         cursor = connection.cursor()
 
-
         cursor.execute(
             """
             INSERT OR REPLACE INTO entities
             (
                 entity_id,
                 entity_type,
-                name,
-                state
+                name
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?)
             """,
             (
                 entity.entity_id,
                 entity.entity_type,
-                entity.name,
-                entity.state
+                entity.name
             )
         )
-
 
         connection.commit()
 
@@ -64,7 +66,8 @@ class EntityRegistry:
             key: value.model_dump()
             for key, value in self.entities.items()
         }
-    
+
+
     def load(self):
 
         connection = get_connection()
@@ -76,8 +79,7 @@ class EntityRegistry:
             SELECT
                 entity_id,
                 entity_type,
-                name,
-                state
+                name
             FROM entities
             """
         ).fetchall()
@@ -89,9 +91,65 @@ class EntityRegistry:
             entity = Entity(
                 entity_id=row[0],
                 entity_type=row[1],
-                name=row[2],
-                state=row[3]
+                name=row[2]
             )
 
-            self.entities[entity.entity_id] = entity
+            self.entities[
+                entity.entity_id
+            ] = entity
+
+            self.states[
+                entity.entity_id
+            ] = EntityState()
+
+
+    def update_state(
+        self,
+        entity_id,
+        state,
+        attributes=None
+    ):
+
+        if entity_id not in self.states:
+
+            self.states[
+                entity_id
+            ] = EntityState()
+
+
+        self.states[
+            entity_id
+        ].update(
+            state,
+            attributes
+        )
+
+
+        self.save_state(
+            entity_id
+        )
+
+
+    def get_state(self, entity_id):
+
+        state = self.states.get(
+            entity_id
+        )
+
+        if state:
+
+            return state.as_dict()
+
+
+        return None
+
+
+    def save_state(self, entity_id):
+
+        # Temporary placeholder.
+        # We will add state persistence separately.
+
+        pass
+
+
 entity_registry = EntityRegistry()
