@@ -35,6 +35,17 @@ async def root():
         "status": "online"
     }
 
+@app.get("/health")
+async def health():
+
+    return {
+        "status": "ok",
+        "service": PROJECT_NAME,
+        "version": VERSION,
+        "entities": len(
+            entity_registry.entities
+        )
+    }
 
 @app.get("/endpoints")
 async def endpoints():
@@ -139,3 +150,19 @@ async def entity(entity_id: str):
         }
 
     return item.model_dump()
+@app.post("/test/command/light")
+async def test_light_command():
+
+    message = {
+        "version": "1.0",
+        "type": "light.toggle",
+        "source": "test",
+        "target": "roomhub-core",
+        "payload": {
+            "entity_id": "light.kitchen_main"
+        }
+    }
+
+    from .core.command_router import command_router
+
+    return await command_router.execute(message)
