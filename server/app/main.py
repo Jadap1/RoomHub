@@ -5,6 +5,7 @@ from .config import PROJECT_NAME, VERSION
 from .services.endpoint_service import register_endpoint
 from .core.registry import registry
 from .handlers.dispatcher import dispatch
+from .core.connection_manager import manager
 
 app = FastAPI(
     title=PROJECT_NAME,
@@ -42,6 +43,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
             response = await dispatch(message)
 
+            if message["type"] == "endpoint.register":
+
+                endpoint_id = message["payload"]["device_id"]
+
+                await manager.connect(
+                    endpoint_id,
+                    websocket
+                )
+
+
             await websocket.send_json(response)
 
 
@@ -53,3 +64,26 @@ async def websocket_endpoint(websocket: WebSocket):
 
             if endpoint:
                 endpoint.connected = False
+
+            manager.disconnect(endpoint_id)
+
+@app.post("/test/display/{endpoint_id}")
+async def test_display(endpoint_id: str):
+
+    await manager.send(
+        endpoint_id,
+        {
+            "version": "1.0",
+            "type": "display.show",
+            "source": "roomhub-core",
+            "target": endpoint_id,
+            "payload": {
+                "screen": "home"
+            }
+        }
+    )
+
+    return {
+        "status": "sent",
+        "target": endpoint_id
+    }

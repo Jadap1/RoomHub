@@ -43,7 +43,11 @@ async def main():
         print(response)
 
         while True:
-            await asyncio.sleep(10)
+
+            message = await websocket.recv()
+
+            print("\nMessage received:")
+            print(message)
 
 
 if __name__ == "__main__":
