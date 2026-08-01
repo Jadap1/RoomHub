@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "message_id": "001",
+  "timestamp": "2026-08-01T12:00:00Z",
+  "type": "endpoint.register",
+  "source": "kitchen-panel",
+  "target": "roomhub-core",
+  "payload": {
+    "device_id": "kitchen-panel",
+    "device_name": "Kitchen Panel",
+    "room": "Kitchen",
+    "capabilities": [
+      "display",
+      "touch",
+      "speaker",
+      "microphone"
+    ]
+  }
+}
