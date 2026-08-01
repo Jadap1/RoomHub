@@ -1,33 +1,30 @@
 from ..core.connection_manager import manager
+from ..core.command_router import command_router
 
 
 async def handle_input(message):
-
-    button = message["payload"].get("button")
-
-    endpoint_id = message["source"]
-
 
     print(
         "[INPUT EVENT]",
         message["payload"]
     )
 
+    button = message["payload"].get("button")
+
 
     if button == "lights":
 
-        await manager.send(
-            endpoint_id,
-            {
-                "version": "1.0",
-                "type": "display.show",
-                "source": "roomhub-core",
-                "target": endpoint_id,
-                "payload": {
-                    "screen": "lights"
-                }
+        command = {
+            "version": "1.0",
+            "type": "light.toggle",
+            "source": message["source"],
+            "target": "roomhub-core",
+            "payload": {
+                "entity_id": "test_light"
             }
-        )
+        }
+
+        return await command_router.execute(command)
 
 
     return {

@@ -7,12 +7,17 @@ from .core.registry import registry
 from .handlers.dispatcher import dispatch
 from .core.connection_manager import manager
 from .core.command_manager import send_command
+from .core.command_router import command_router
 from .core.state_manager import state_manager
+from .core.command_registry import register_commands
+
+register_commands()
 
 app = FastAPI(
     title=PROJECT_NAME,
     version=VERSION
 )
+
 
 
 @app.get("/")
@@ -42,8 +47,6 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
 
             message = json.loads(data)
-
-            response = await dispatch(message)
 
             if message["type"] == "endpoint.register":
 
@@ -91,6 +94,24 @@ async def test_display(endpoint_id: str):
         "status": "sent",
         "target": endpoint_id
     }
+
+@app.post("/test/light/{endpoint_id}")
+async def test_light(endpoint_id: str):
+
+    message = {
+        "version": "1.0",
+        "type": "light.toggle",
+        "source": "roomhub-core",
+        "target": endpoint_id,
+        "payload": {
+            "entity_id": "test_light"
+        }
+    }
+
+    response = await command_router.execute(message)
+
+    return response
+
 @app.get("/state/{endpoint_id}")
 async def endpoint_state(endpoint_id: str):
 

@@ -1,6 +1,7 @@
 from .endpoint_handler import handle_endpoint_register
 from .heartbeat_handler import handle_heartbeat
 from .input_handler import handle_input
+from ..core.command_router import command_router
 
 
 async def dispatch(message):

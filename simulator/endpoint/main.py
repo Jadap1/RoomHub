@@ -111,7 +111,7 @@ async def keyboard_loop():
         else:
 
             print("Unknown key")
-async def test_input():
+""" async def test_input():
 
     while True:
 
@@ -119,7 +119,7 @@ async def test_input():
 
         await runtime.input.button_press(
             "home"
-        )
+        ) """
 
 
 async def main():
