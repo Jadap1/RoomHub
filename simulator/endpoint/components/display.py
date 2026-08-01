@@ -1,5 +1,5 @@
 from screens.home import HomeScreen
-
+from screens.lights import LightsScreen
 
 class DisplayComponent:
 
@@ -9,7 +9,8 @@ class DisplayComponent:
         self.state = None
 
         self.screens = {
-            "home": HomeScreen()
+            "home": HomeScreen(),
+            "lights": LightsScreen()
         }
 
 
