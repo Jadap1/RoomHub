@@ -20,7 +20,7 @@ async def handle_input(message):
             "source": message["source"],
             "target": "roomhub-core",
             "payload": {
-                "entity_id": "test_light"
+                "entity_id": "light.kitchen_main"
             }
         }
 

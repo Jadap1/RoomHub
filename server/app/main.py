@@ -10,6 +10,8 @@ from .core.command_manager import send_command
 from .core.command_router import command_router
 from .core.state_manager import state_manager
 from .core.command_registry import register_commands
+from .core.entity_registry_init import register_entities
+from .core.entity_registry import entity_registry
 
 register_commands()
 
@@ -18,7 +20,12 @@ app = FastAPI(
     version=VERSION
 )
 
+register_entities()
 
+@app.get("/entities")
+async def entities():
+
+    return entity_registry.get_all()
 
 @app.get("/")
 async def root():
@@ -121,3 +128,14 @@ async def endpoint_state(endpoint_id: str):
         return None
 
     return endpoint.state
+@app.get("/entities/{entity_id}")
+async def entity(entity_id: str):
+
+    item = entity_registry.get(entity_id)
+
+    if not item:
+        return {
+            "error": "not found"
+        }
+
+    return item.model_dump()
