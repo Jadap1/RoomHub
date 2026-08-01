@@ -7,6 +7,7 @@ from .core.registry import registry
 from .handlers.dispatcher import dispatch
 from .core.connection_manager import manager
 from .core.command_manager import send_command
+from .core.state_manager import state_manager
 
 app = FastAPI(
     title=PROJECT_NAME,
@@ -90,3 +91,12 @@ async def test_display(endpoint_id: str):
         "status": "sent",
         "target": endpoint_id
     }
+@app.get("/state/{endpoint_id}")
+async def endpoint_state(endpoint_id: str):
+
+    endpoint = registry.get(endpoint_id)
+
+    if not endpoint:
+        return None
+
+    return endpoint.state

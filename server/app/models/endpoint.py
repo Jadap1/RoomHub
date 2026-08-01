@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, Field
-
+from typing import List, Optional
 
 class Endpoint(BaseModel):
 
@@ -11,4 +11,4 @@ class Endpoint(BaseModel):
 
     connected: bool = False
     last_seen: datetime | None = None
-    state: dict = Field(default_factory=dict)
+    state: dict = {}

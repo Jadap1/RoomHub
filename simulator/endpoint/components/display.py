@@ -29,4 +29,6 @@ class DisplayComponent:
 
         print(f"[DISPLAY] Showing {screen_name}")
 
+        state.current_screen = screen_name
+
         screen.render(state)

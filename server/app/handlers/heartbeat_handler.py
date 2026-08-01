@@ -1,5 +1,6 @@
 from datetime import datetime
 from ..core.registry import registry
+from ..core.state_manager import state_manager
 
 
 async def handle_heartbeat(message):
@@ -24,3 +25,7 @@ async def handle_heartbeat(message):
             "time": datetime.now().isoformat()
         }
     }
+    state_manager.update(
+        message["source"],
+        message["payload"]
+    )
