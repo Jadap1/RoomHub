@@ -1,12 +1,17 @@
 import asyncio
 import websockets
+import json
 
 from protocol import create_message, encode_message
+from runtime import EndpointRuntime
+
 
 
 SERVER = "ws://127.0.0.1:8000/ws"
 
 DEVICE_ID = "kitchen-test-panel"
+
+runtime = EndpointRuntime()
 
 
 registration = create_message(
@@ -46,8 +51,12 @@ async def main():
 
             message = await websocket.recv()
 
+            message = json.loads(message)
+
             print("\nMessage received:")
             print(message)
+
+            await runtime.handle_message(message)
 
 
 if __name__ == "__main__":
