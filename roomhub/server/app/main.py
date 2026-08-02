@@ -89,6 +89,45 @@ async def devices():
 
     return device_registry.get_all()
 
+
+@app.get("/floors/{floor_id}")
+async def floor(floor_id: str):
+
+    item = floor_registry.get(floor_id)
+
+    if not item:
+        return {
+            "error": "not found"
+        }
+
+    return item.model_dump()
+
+
+@app.get("/areas/{area_id}")
+async def area(area_id: str):
+
+    item = area_registry.get(area_id)
+
+    if not item:
+        return {
+            "error": "not found"
+        }
+
+    return item.model_dump()
+
+
+@app.get("/devices/{device_id}")
+async def device(device_id: str):
+
+    item = device_registry.get(device_id)
+
+    if not item:
+        return {
+            "error": "not found"
+        }
+
+    return item.model_dump()
+
 @app.get("/")
 async def root():
     return {
