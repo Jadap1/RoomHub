@@ -1,0 +1,43 @@
+name: RoomHub server tests
+
+on:
+  push:
+    paths:
+      - "roomhub/server/**"
+      - ".github/workflows/server-tests.yml"
+  pull_request:
+    paths:
+      - "roomhub/server/**"
+      - ".github/workflows/server-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: roomhub/server
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: roomhub/server/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -W error::DeprecationWarning -m unittest discover -s tests -v
+
+      - name: Compile application and tests
+        run: python -m compileall -q app tests
