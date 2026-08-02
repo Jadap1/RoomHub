@@ -1,4 +1,5 @@
-from ..core.entity_registry import entity_registry
+from ..core.event_bus import event_bus
+from ..events.entity_events import EntityCommandEvent
 
 
 async def handle_light_toggle(message):
@@ -7,46 +8,31 @@ async def handle_light_toggle(message):
         "entity_id"
     )
 
-    entity = entity_registry.get(
-        entity_id
-    )
-
-
-    if not entity:
+    if not entity_id:
 
         return {
             "version": "1.0",
             "type": "error",
             "payload": {
-                "message": f"Unknown entity: {entity_id}"
+                "message": "entity_id is required"
             }
         }
 
 
-    if entity.state == "off":
-
-        entity.state = "on"
-
-    else:
-
-        entity.state = "off"
-        
-    entity_registry.save(entity) 
-
-
-    print(
-        "[LIGHT COMMAND]",
-        entity.entity_id,
-        "->",
-        entity.state
+    event = EntityCommandEvent(
+        entity_id=entity_id,
+        command="toggle"
     )
+
+
+    await event_bus.publish(event)
 
 
     return {
         "version": "1.0",
-        "type": "light.state_changed",
+        "type": "command.accepted",
         "payload": {
-            "entity_id": entity.entity_id,
-            "state": entity.state
+            "entity_id": entity_id,
+            "command": "toggle"
         }
     }

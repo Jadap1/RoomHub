@@ -14,6 +14,7 @@ from .core.entity_registry_init import register_entities
 from .core.entity_registry import entity_registry
 from .core.database import initialise_database
 from .core.entity_registry import entity_registry
+from .core.event_subscriptions import register_event_subscriptions
 
 register_commands()
 
@@ -27,6 +28,10 @@ initialise_database()
 entity_registry.load()
 
 register_entities()
+
+register_commands()
+
+register_event_subscriptions()
 
 @app.get("/entities")
 async def entities():
