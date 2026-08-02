@@ -172,6 +172,10 @@ class HomeAssistantConnector:
         if self._receive_task:
 
             self._receive_task.cancel()
+            try:
+                await self._receive_task
+            except asyncio.CancelledError:
+                pass
 
         await self._registry_updates.stop()
 

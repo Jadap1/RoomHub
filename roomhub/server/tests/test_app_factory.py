@@ -154,3 +154,6 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertTrue(connector.stopped.is_set())
                 self.assertFalse(connector.connected)
+                self.assertTrue(
+                    app.state.homeassistant_task.done()
+                )

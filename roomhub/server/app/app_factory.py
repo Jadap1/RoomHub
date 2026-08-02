@@ -60,6 +60,10 @@ def create_app(
             )
             if task:
                 task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     app = FastAPI(
         title=PROJECT_NAME,

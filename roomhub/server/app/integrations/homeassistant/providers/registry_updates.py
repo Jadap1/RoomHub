@@ -94,6 +94,13 @@ class HomeAssistantRegistryUpdates:
 
         if self._refresh_task:
             self._refresh_task.cancel()
+            try:
+                await self._refresh_task
+            except asyncio.CancelledError:
+                pass
+            self._refresh_task = None
+
+        self._pending_event_types.clear()
 
 
     async def _refresh_pending(self) -> None:

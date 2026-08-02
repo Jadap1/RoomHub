@@ -107,3 +107,39 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual((area.syncs, device.syncs, entity.registry_syncs), (1, 1, 1))
         self.assertEqual(state_refreshes, 2)
+
+    async def test_registry_refresh_task_is_awaited_on_stop(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class BlockingProvider(FakeProvider):
+            async def sync(self):
+                started.set()
+                await release.wait()
+
+        updates = HomeAssistantRegistryUpdates(
+            BlockingProvider(),
+            FakeProvider(),
+            FakeProvider(),
+            FakeEntityProvider(),
+            lambda: asyncio.sleep(0),
+            lambda payload: asyncio.sleep(0)
+        )
+        await updates.handle_event(
+            {
+                "event": {
+                    "event_type": "floor_registry_updated"
+                }
+            }
+        )
+        await asyncio.wait_for(started.wait(), timeout=1)
+        task = updates._refresh_task
+
+        await updates.stop()
+
+        self.assertTrue(task.done())
+        self.assertIsNone(updates._refresh_task)
+        self.assertEqual(
+            updates._pending_event_types,
+            set()
+        )
