@@ -1,5 +1,6 @@
 #include "esp_log.h"
 
+#include "roomhub/endpoint_config.hpp"
 #include "roomhub/voice_session.hpp"
 
 namespace {
@@ -17,6 +18,32 @@ extern "C" void app_main(void)
     ESP_LOGI(kTag, "RoomHub endpoint firmware starting");
     ESP_LOGI(kTag, "Board profile: M5Stack Tab5");
     ESP_LOGI(kTag, "On-device wake model: wn9_jarvis_tts");
+
+    const esp_err_t storage_result = roomhub::config::initialize_storage();
+    if (storage_result != ESP_OK) {
+        ESP_LOGE(
+            kTag,
+            "Configuration storage unavailable: %s",
+            esp_err_to_name(storage_result)
+        );
+    } else {
+        roomhub::config::EndpointConfigStore config_store;
+        const roomhub::config::LoadResult config_result = config_store.load();
+        if (config_result.status == roomhub::config::LoadStatus::ready) {
+            ESP_LOGI(kTag, "Endpoint configuration loaded");
+        } else if (
+            config_result.status == roomhub::config::LoadStatus::not_provisioned
+        ) {
+            ESP_LOGW(kTag, "Endpoint provisioning required");
+        } else {
+            ESP_LOGE(
+                kTag,
+                "Endpoint configuration invalid or unreadable: %s",
+                esp_err_to_name(config_result.error)
+            );
+        }
+    }
+
     ESP_LOGI(
         kTag,
         "Privacy state: %s; network audio allowed: %s",

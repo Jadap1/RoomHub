@@ -44,8 +44,30 @@ The first hardware bring-up must confirm the Tab5 microphone channel order befor
 the AFE capture adapter is enabled. The ES7210 supplies two microphones and the
 board's ES8388/ES7210 audio path is owned by the Tab5 BSP.
 
+## Persistent configuration
+
+Endpoint identity, the RoomHub server URL, and Wi-Fi credentials are stored in
+the ESP-IDF NVS partition. They are never compiled into the firmware or logged.
+The firmware validates all values on load and remains in an unprovisioned state
+until every required value has been stored. The eventual USB provisioning flow
+will use `roomhub::config::EndpointConfigStore`; it is intentionally deferred
+until the physical board is available.
+
+The prototype does not yet enable NVS encryption. Flash encryption and secure
+boot should be enabled together after the first hardware bring-up, because
+their production settings affect flashing and recovery.
+
+## Flash layout
+
+The 16 MB flash contains two 4 MB application slots plus OTA selection data,
+so a future updater can install and verify a new firmware image without
+overwriting the running image. The remaining space provides 3 MB for ESP-SR
+models, about 4.9 MB for future assets, and NVS for device configuration. With
+an erased OTA selection partition, ESP-IDF boots `ota_0` on the initial flash.
+
 ## Layout
 
+- `components/roomhub_config`: validated, persistent endpoint configuration.
 - `components/roomhub_voice`: portable voice-session state and privacy rules.
 - `main`: endpoint composition and, later, board-profile selection.
 - `components/roomhub_voice/test`: ESP-IDF Unity component tests for the
