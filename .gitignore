@@ -13,3 +13,8 @@ __pycache__/
 Thumbs.db
 
 server/config/homeassistant.json
+
+# RoomHub runtime database
+/roomhub/server/roomhub.db
+/roomhub/server/roomhub.db-wal
+/roomhub/server/roomhub.db-shm
