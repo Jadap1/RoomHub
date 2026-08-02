@@ -25,6 +25,7 @@ from ..homeassistant_config import (
 from ..homeassistant_config_loader import (
     load_homeassistant_config,
 )
+from .authentication import authenticate
 from .request_client import (
     HomeAssistantRequestClient,
 )
@@ -179,7 +180,8 @@ class HomeAssistantConnector:
             self._request_client.attach(websocket)
             self._websocket = websocket
 
-            await self._authenticate(
+            await authenticate(
+                websocket,
                 settings.access_token
             )
 
@@ -208,62 +210,6 @@ class HomeAssistantConnector:
 
 
             await self._receive_task
-
-
-    async def _authenticate(
-        self,
-        access_token: str
-    ) -> None:
-
-        initial_message = json.loads(
-            await self._websocket.recv()
-        )
-
-        if (
-            initial_message.get("type")
-            != "auth_required"
-        ):
-
-            raise RuntimeError(
-                "Home Assistant did not request "
-                "authentication"
-            )
-
-
-        await self._websocket.send(
-            json.dumps(
-                {
-                    "type": "auth",
-                    "access_token": access_token
-                }
-            )
-        )
-
-
-        auth_response = json.loads(
-            await self._websocket.recv()
-        )
-
-        response_type = auth_response.get(
-            "type"
-        )
-
-        if response_type == "auth_invalid":
-
-            raise RuntimeError(
-                "Home Assistant authentication "
-                "failed: "
-                f"{auth_response.get('message')}"
-            )
-
-
-        if response_type != "auth_ok":
-
-            raise RuntimeError(
-                "Unexpected Home Assistant "
-                "authentication response: "
-                f"{auth_response}"
-            )
 
 
     async def _initial_state_sync(
