@@ -63,7 +63,8 @@ class HomeAssistantConnector:
         )
         self._entity_provider = (
             HomeAssistantEntityProvider(
-                self._entity_filter
+                self._entity_filter,
+                self._send_request
             )
         )
         self._state_provider = (
@@ -244,6 +245,7 @@ class HomeAssistantConnector:
         await self._floor_provider.sync()
         await self._area_provider.sync()
         await self._device_provider.sync()
+        await self._entity_provider.sync_registry()
 
 
     async def _initial_state_sync(

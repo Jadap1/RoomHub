@@ -18,10 +18,40 @@ class HomeAssistantEntityProvider:
 
     def __init__(
         self,
-        entity_filter: EntityFilterConfig
+        entity_filter: EntityFilterConfig,
+        send_request: Callable[
+            [dict[str, Any]],
+            Awaitable[Any]
+        ]
     ) -> None:
 
         self._entity_filter = entity_filter
+        self._send_request = send_request
+        self._registry_entries: dict[
+            str,
+            dict[str, Any]
+        ] = {}
+
+
+    async def sync_registry(self) -> None:
+
+        entries = await self._send_request(
+            {
+                "type": "config/entity_registry/list"
+            }
+        )
+
+        self._registry_entries = {
+            entry["entity_id"]: entry
+            for entry in entries
+            if entry.get("entity_id")
+        }
+
+        logger.info(
+            "Imported %s Home Assistant entity "
+            "registry entries",
+            len(self._registry_entries)
+        )
 
 
     def allows(
@@ -97,12 +127,29 @@ class HomeAssistantEntityProvider:
             1
         )[0]
 
+        registry_entry = self._registry_entries.get(
+            entity_id,
+            {}
+        )
+
 
         await event_bus.publish(
             EntityDiscoveredEvent(
                 entity_id=entity_id,
                 entity_type=entity_type,
                 name=friendly_name,
+                device_id=registry_entry.get(
+                    "device_id"
+                ),
+                area_id=registry_entry.get(
+                    "area_id"
+                ),
+                platform=registry_entry.get(
+                    "platform"
+                ),
+                entity_category=registry_entry.get(
+                    "entity_category"
+                ),
                 attributes=attributes
             )
         )

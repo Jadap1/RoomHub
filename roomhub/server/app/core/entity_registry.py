@@ -169,6 +169,12 @@ class EntityRegistry:
 
             existing.name = event.name
             existing.entity_type = event.entity_type
+            existing.device_id = event.device_id
+            existing.area_id = event.area_id
+            existing.platform = event.platform
+            existing.entity_category = (
+                event.entity_category
+            )
 
             self.save(existing)
 
@@ -180,7 +186,11 @@ class EntityRegistry:
                 entity_id=event.entity_id,
                 entity_type=event.entity_type,
                 name=event.name,
-                integration="homeassistant"
+                integration="homeassistant",
+                device_id=event.device_id,
+                area_id=event.area_id,
+                platform=event.platform,
+                entity_category=event.entity_category
             )
         )
 
