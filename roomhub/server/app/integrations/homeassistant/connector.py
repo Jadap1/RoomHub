@@ -6,23 +6,26 @@ from typing import Any
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from ..config_sources import (
+from ...config_sources import (
     is_homeassistant_app,
     load_app_options,
 )
-from ..core.event_bus import event_bus
-from ..events.entity_events import (
+from ...core.event_bus import event_bus
+from ...events.entity_events import (
     EntityCommandEvent,
     EntityDiscoveredEvent,
     EntityStateChangedEvent,
+    FloorDiscoveredEvent,
+    AreaDiscoveredEvent,
+    DeviceDiscoveredEvent,
 )
-from .homeassistant_auth import (
+from ..homeassistant_auth import (
     get_homeassistant_connection_settings,
 )
-from .homeassistant_config import (
+from ..homeassistant_config import (
     EntityFilterConfig,
 )
-from .homeassistant_config_loader import (
+from ..homeassistant_config_loader import (
     load_homeassistant_config,
 )
 
@@ -198,6 +201,14 @@ class HomeAssistantConnector:
                     self._receive_loop()
                 )
             )
+        async def _synchronise_registries(
+            self
+        ) -> None:
+
+            await self._synchronise_floors()
+            await self._synchronise_areas()
+            await self._synchronise_devices()
+            await self._synchronise_entity_registry()
 
 
             await self._initial_state_sync()
@@ -640,3 +651,82 @@ class HomeAssistantConnector:
 
 
         self._pending_requests.clear()
+async def _synchronise_floors(self) -> None:
+
+    floors = await self._send_request(
+        {
+            "type": "config/floor_registry/list"
+        }
+    )
+
+    for floor in floors:
+
+        await event_bus.publish(
+            FloorDiscoveredEvent(
+                floor_id=floor["floor_id"],
+                name=floor["name"],
+                level=floor.get("level")
+            )
+        )
+
+
+async def _synchronise_areas(self) -> None:
+
+    areas = await self._send_request(
+        {
+            "type": "config/area_registry/list"
+        }
+    )
+
+    for area in areas:
+
+        await event_bus.publish(
+            AreaDiscoveredEvent(
+                area_id=area["area_id"],
+                name=area["name"],
+                floor_id=area.get("floor_id")
+            )
+        )
+
+
+async def _synchronise_devices(self) -> None:
+
+    devices = await self._send_request(
+        {
+            "type": "config/device_registry/list"
+        }
+    )
+
+    for device in devices:
+
+        name = (
+            device.get("name_by_user")
+            or device.get("name")
+            or device.get("default_name")
+            or device["id"]
+        )
+
+        await event_bus.publish(
+            DeviceDiscoveredEvent(
+                device_id=device["id"],
+                name=name,
+                area_id=device.get("area_id"),
+                manufacturer=(
+                    device.get("manufacturer")
+                    or device.get(
+                        "default_manufacturer"
+                    )
+                ),
+                model=(
+                    device.get("model")
+                    or device.get("default_model")
+                ),
+                config_entries=device.get(
+                    "config_entries",
+                    []
+                ),
+                via_device_id=device.get(
+                    "via_device_id"
+                )
+            )
+        )

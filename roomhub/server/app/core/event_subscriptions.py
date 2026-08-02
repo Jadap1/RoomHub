@@ -7,6 +7,15 @@ from ..events.entity_events import (
 )
 from ..integrations.registry import homeassistant
 
+# from .area_registry import area_registry
+# from .device_registry import device_registry
+# from .floor_registry import floor_registry
+
+from ..events.entity_events import (
+    AreaDiscoveredEvent,
+    DeviceDiscoveredEvent,
+    FloorDiscoveredEvent,
+)
 
 def register_event_subscriptions() -> None:
 
@@ -24,3 +33,17 @@ def register_event_subscriptions() -> None:
         EntityStateChangedEvent,
         entity_registry.handle_state_changed
     )
+    # event_bus.subscribe(
+    #     FloorDiscoveredEvent,
+    #     floor_registry.handle_discovered
+    # )
+
+    # event_bus.subscribe(
+    #     AreaDiscoveredEvent,
+    #     area_registry.handle_discovered
+    # )
+
+    # event_bus.subscribe(
+    #     DeviceDiscoveredEvent,
+    #     device_registry.handle_discovered
+    # )
