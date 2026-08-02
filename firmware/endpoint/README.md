@@ -18,19 +18,29 @@ pipeline from STT to STT and from TTS to TTS as separate operations.
 
 ## Toolchain
 
-- ESP-IDF 5.4 or later
+- ESP-IDF 5.4.4 (verified build version)
 - Target: `esp32p4`
 - ESP-SR 2.4.x
 - Espressif M5Stack Tab5 BSP 1.2.x
 
-After installing ESP-IDF:
+After installing and activating ESP-IDF, select the target once:
 
 ```text
 idf.py set-target esp32p4
-idf.py build
 ```
 
-The first hardware build must confirm the Tab5 microphone channel order before
+On Windows, build with:
+
+```text
+.\build.ps1
+```
+
+The wrapper enables UTF-8 for ESP-SR's model packaging output before invoking
+the standard `idf.py build` command.
+
+On other platforms, build with `idf.py build` directly.
+
+The first hardware bring-up must confirm the Tab5 microphone channel order before
 the AFE capture adapter is enabled. The ES7210 supplies two microphones and the
 board's ES8388/ES7210 audio path is owned by the Tab5 BSP.
 

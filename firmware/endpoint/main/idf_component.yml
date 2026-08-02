@@ -2,3 +2,5 @@ dependencies:
   idf: ">=5.4"
   espressif/esp-sr: "~2.4.0"
   espressif/m5stack_tab5: "^1.2.0~1"
+  espressif/usb: ">=1.0.0,<1.5.0"
+  lvgl/lvgl: ">=9.3,<10"
