@@ -3,7 +3,11 @@ import unittest
 from unittest.mock import patch
 
 from app.core.event_bus import EventBus
-from app.events.entity_events import EntityDiscoveredEvent, EntityStateChangedEvent
+from app.events.entity_events import (
+    EntityDiscoveredEvent,
+    EntityRemovedEvent,
+    EntityStateChangedEvent,
+)
 from app.integrations.homeassistant.providers.entity_provider import HomeAssistantEntityProvider
 from app.integrations.homeassistant.providers.registry_updates import HomeAssistantRegistryUpdates, REGISTRY_EVENT_TYPES
 from app.integrations.homeassistant.providers.state_provider import HomeAssistantStateProvider
@@ -81,6 +85,40 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(entity_provider.discovered), 1)
         self.assertFalse(events[0].available)
         self.assertEqual(events[0].attributes, {"test": True})
+
+    async def test_entity_registry_removal_is_published(self):
+        bus = EventBus()
+        removed = []
+        responses = [
+            [{"entity_id": "light.removed"}],
+            []
+        ]
+
+        async def capture(event):
+            removed.append(event.entity_id)
+
+        async def send_request(payload):
+            return responses.pop(0)
+
+        bus.subscribe(EntityRemovedEvent, capture)
+        provider = HomeAssistantEntityProvider(
+            EntityFilterConfig(),
+            send_request,
+            lambda device_id: None
+        )
+
+        with patch(
+            "app.integrations.homeassistant.providers."
+            "entity_provider.event_bus",
+            bus
+        ):
+            await provider.sync_registry()
+            await provider.sync_registry()
+
+        self.assertEqual(
+            removed,
+            ["light.removed"]
+        )
 
     async def test_registry_updates_coalesce(self):
         floor = FakeProvider()

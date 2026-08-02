@@ -16,6 +16,7 @@ from app.events.entity_events import (
     DeviceDiscoveredEvent,
     DeviceRemovedEvent,
     EntityDiscoveredEvent,
+    EntityRemovedEvent,
     EntityStateChangedEvent,
     FloorDiscoveredEvent,
     FloorRemovedEvent,
@@ -91,6 +92,21 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             reloaded_state["last_updated"].endswith(
                 "+00:00"
+            )
+        )
+
+        await entities.handle_entity_removed(
+            EntityRemovedEvent(
+                entity_id="light.kitchen"
+            )
+        )
+        reloaded_entities.load()
+        self.assertIsNone(
+            reloaded_entities.get("light.kitchen")
+        )
+        self.assertIsNone(
+            reloaded_entities.get_state(
+                "light.kitchen"
             )
         )
         self.assertEqual(reloaded_entities.get("light.legacy").integration, "homeassistant")

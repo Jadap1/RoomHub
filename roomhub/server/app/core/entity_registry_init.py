@@ -4,7 +4,13 @@ from ..models.entity import Entity
 
 def register_entities():
 
-    if entity_registry.get("light.kitchen_main") is not None:
+    existing = entity_registry.get(
+        "light.kitchen_main"
+    )
+
+    if existing is not None:
+        existing.integration = "roomhub"
+        entity_registry.save(existing)
         return
 
     entity_registry.register(
@@ -12,6 +18,7 @@ def register_entities():
             entity_id="light.kitchen_main",
             entity_type="light",
             name="Kitchen Main Light",
+            integration="roomhub",
             capabilities=[
                 "on_off"
             ]

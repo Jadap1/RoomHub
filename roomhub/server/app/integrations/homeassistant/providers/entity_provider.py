@@ -3,8 +3,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ....core.event_bus import event_bus
+from ....core.entity_registry import entity_registry
 from ....events.entity_events import (
     EntityDiscoveredEvent,
+    EntityRemovedEvent,
 )
 from ...homeassistant_config import (
     EntityFilterConfig,
@@ -48,11 +50,36 @@ class HomeAssistantEntityProvider:
             }
         )
 
-        self._registry_entries = {
+        known_entity_ids = set(
+            self._registry_entries
+        )
+
+        if not known_entity_ids:
+            known_entity_ids = {
+                entity_id
+                for entity_id, entity in (
+                    entity_registry.entities.items()
+                )
+                if entity.integration == "homeassistant"
+            }
+
+        registry_entries = {
             entry["entity_id"]: entry
             for entry in entries
             if entry.get("entity_id")
         }
+
+        for entity_id in (
+            known_entity_ids
+            - set(registry_entries)
+        ):
+            await event_bus.publish(
+                EntityRemovedEvent(
+                    entity_id=entity_id
+                )
+            )
+
+        self._registry_entries = registry_entries
 
         logger.info(
             "Imported %s Home Assistant entity "

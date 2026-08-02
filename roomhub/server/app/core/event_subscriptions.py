@@ -3,6 +3,7 @@ from .event_bus import event_bus
 from ..events.entity_events import (
     EntityCommandEvent,
     EntityDiscoveredEvent,
+    EntityRemovedEvent,
     EntityStateChangedEvent,
 )
 from ..integrations.registry import homeassistant
@@ -37,6 +38,10 @@ def register_event_subscriptions(
     event_bus.subscribe(
         EntityStateChangedEvent,
         entity_registry.handle_state_changed
+    )
+    event_bus.subscribe(
+        EntityRemovedEvent,
+        entity_registry.handle_entity_removed
     )
     event_bus.subscribe(
         FloorDiscoveredEvent,

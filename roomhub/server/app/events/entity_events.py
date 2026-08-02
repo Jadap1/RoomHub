@@ -37,6 +37,12 @@ class EntityStateChangedEvent(BaseModel):
     )
 
     available: bool = True
+
+
+class EntityRemovedEvent(BaseModel):
+    entity_id: str
+
+
 class FloorDiscoveredEvent(BaseModel):
     floor_id: str
     name: str

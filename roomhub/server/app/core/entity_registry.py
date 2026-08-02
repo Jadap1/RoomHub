@@ -7,6 +7,7 @@ from .entity_state import EntityState
 from .database import get_connection
 from ..events.entity_events import (
     EntityDiscoveredEvent,
+    EntityRemovedEvent,
     EntityStateChangedEvent,
 )
 
@@ -317,6 +318,33 @@ class EntityRegistry:
             attributes=event.attributes,
             available=event.available
         )
+
+
+    async def handle_entity_removed(
+        self,
+        event: EntityRemovedEvent
+    ) -> None:
+
+        self.entities.pop(
+            event.entity_id,
+            None
+        )
+        self.states.pop(
+            event.entity_id,
+            None
+        )
+
+        with closing(get_connection()) as connection, connection:
+            connection.execute(
+                "DELETE FROM entity_states "
+                "WHERE entity_id = ?",
+                (event.entity_id,)
+            )
+            connection.execute(
+                "DELETE FROM entities "
+                "WHERE entity_id = ?",
+                (event.entity_id,)
+            )
 
 
 entity_registry = EntityRegistry()

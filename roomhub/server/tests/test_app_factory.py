@@ -9,6 +9,7 @@ from app.app_factory import create_app
 from app.core import database
 from app.core.area_registry import area_registry
 from app.core.device_registry import device_registry
+from app.core.entity_registry import entity_registry
 from app.events.entity_events import (
     AreaDiscoveredEvent,
     DeviceDiscoveredEvent,
@@ -97,6 +98,13 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
                 app = create_app(
                     database_path=database_path,
                     homeassistant_connector=connector
+                )
+
+                self.assertEqual(
+                    entity_registry.get(
+                        "light.kitchen_main"
+                    ).integration,
+                    "roomhub"
                 )
 
                 await area_registry.handle_discovered(
