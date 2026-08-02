@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 class EntityState:
@@ -13,7 +13,7 @@ class EntityState:
         self.state = state
         self.attributes = attributes or {}
         self.available = available
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(UTC)
 
 
     def update(
@@ -27,7 +27,7 @@ class EntityState:
         if attributes:
             self.attributes.update(attributes)
 
-        self.last_updated = datetime.utcnow()
+        self.last_updated = datetime.now(UTC)
 
 
     def as_dict(self):
