@@ -13,6 +13,9 @@ from .core.state_manager import state_manager
 from .core.command_registry import register_commands
 from .core.entity_registry_init import register_entities
 from .core.entity_registry import entity_registry
+from .core.area_registry import area_registry
+from .core.device_registry import device_registry
+from .core.floor_registry import floor_registry
 from .core.database import initialise_database
 from .core.entity_registry import entity_registry
 from .core.event_subscriptions import register_event_subscriptions
@@ -64,6 +67,24 @@ async def stop_homeassistant_connector():
 async def entities():
 
     return entity_registry.get_all()
+
+
+@app.get("/floors")
+async def floors():
+
+    return floor_registry.get_all()
+
+
+@app.get("/areas")
+async def areas():
+
+    return area_registry.get_all()
+
+
+@app.get("/devices")
+async def devices():
+
+    return device_registry.get_all()
 
 @app.get("/")
 async def root():
