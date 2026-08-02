@@ -27,6 +27,9 @@ from .commands import HomeAssistantCommands
 from .providers.entity_provider import (
     HomeAssistantEntityProvider,
 )
+from .providers.area_provider import HomeAssistantAreaProvider
+from .providers.device_provider import HomeAssistantDeviceProvider
+from .providers.floor_provider import HomeAssistantFloorProvider
 from .providers.state_provider import (
     HomeAssistantStateProvider,
 )
@@ -69,6 +72,9 @@ class HomeAssistantConnector:
                 self._send_request
             )
         )
+        self._floor_provider = HomeAssistantFloorProvider(self._send_request)
+        self._area_provider = HomeAssistantAreaProvider(self._send_request)
+        self._device_provider = HomeAssistantDeviceProvider(self._send_request)
 
 
     def _load_entity_filter(
@@ -217,6 +223,8 @@ class HomeAssistantConnector:
                 )
             )
 
+            await self._initial_registry_sync()
+
             await self._initial_state_sync()
 
             await self._subscribe_to_state_changes()
@@ -229,6 +237,13 @@ class HomeAssistantConnector:
 
 
             await self._receive_task
+
+
+    async def _initial_registry_sync(self) -> None:
+
+        await self._floor_provider.sync()
+        await self._area_provider.sync()
+        await self._device_provider.sync()
 
 
     async def _initial_state_sync(
