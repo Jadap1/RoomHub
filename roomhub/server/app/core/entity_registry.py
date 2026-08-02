@@ -90,6 +90,9 @@ class EntityRegistry:
 
     def load(self):
 
+        self.entities = {}
+        self.states = {}
+
         connection = get_connection()
 
         cursor = connection.cursor()

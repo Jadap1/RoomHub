@@ -20,11 +20,13 @@ from ..events.entity_events import (
     FloorRemovedEvent,
 )
 
-def register_event_subscriptions() -> None:
+def register_event_subscriptions(
+    homeassistant_connector=homeassistant
+) -> None:
 
     event_bus.subscribe(
         EntityCommandEvent,
-        homeassistant.handle_entity_command
+        homeassistant_connector.handle_entity_command
     )
 
     event_bus.subscribe(
