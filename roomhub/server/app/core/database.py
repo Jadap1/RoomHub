@@ -30,10 +30,6 @@ def get_connection():
     )
 
     connection.execute(
-        "PRAGMA journal_mode=WAL"
-    )
-
-    connection.execute(
         "PRAGMA busy_timeout=30000"
     )
 
@@ -45,6 +41,10 @@ def initialise_database():
     print("[DATABASE] Initialising database")
 
     with closing(get_connection()) as connection, connection:
+
+        connection.execute(
+            "PRAGMA journal_mode=WAL"
+        )
 
         connection.execute(
             """
@@ -112,6 +112,19 @@ def initialise_database():
                 model TEXT,
                 config_entries TEXT NOT NULL,
                 via_device_id TEXT
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS entity_states
+            (
+                entity_id TEXT PRIMARY KEY,
+                state TEXT,
+                attributes TEXT NOT NULL,
+                available INTEGER NOT NULL,
+                last_updated TEXT NOT NULL
             )
             """
         )

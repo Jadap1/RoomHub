@@ -16,9 +16,11 @@ from app.events.entity_events import (
     DeviceDiscoveredEvent,
     DeviceRemovedEvent,
     EntityDiscoveredEvent,
+    EntityStateChangedEvent,
     FloorDiscoveredEvent,
     FloorRemovedEvent,
 )
+from app.models.entity import Entity
 
 
 class PersistenceTests(unittest.IsolatedAsyncioTestCase):
@@ -53,6 +55,14 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
             area_id="kitchen",
             platform="test",
         ))
+        await entities.handle_state_changed(
+            EntityStateChangedEvent(
+                entity_id="light.kitchen",
+                state="unavailable",
+                attributes={"brightness": 100},
+                available=False
+            )
+        )
 
         reloaded_floors = FloorRegistry()
         reloaded_areas = AreaRegistry()
@@ -66,6 +76,23 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reloaded_areas.get("kitchen").floor_id, "ground")
         self.assertEqual(reloaded_devices.get("device-1").config_entries, ["entry"])
         self.assertEqual(reloaded_entities.get("light.kitchen").device_id, "device-1")
+        reloaded_state = reloaded_entities.get_state(
+            "light.kitchen"
+        )
+        self.assertEqual(
+            reloaded_state["state"],
+            "unavailable"
+        )
+        self.assertEqual(
+            reloaded_state["attributes"],
+            {"brightness": 100}
+        )
+        self.assertFalse(reloaded_state["available"])
+        self.assertTrue(
+            reloaded_state["last_updated"].endswith(
+                "+00:00"
+            )
+        )
         self.assertEqual(reloaded_entities.get("light.legacy").integration, "homeassistant")
 
         await floors.handle_removed(FloorRemovedEvent(floor_id="ground"))
@@ -77,3 +104,45 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reloaded_floors.get_all(), {})
         self.assertEqual(reloaded_areas.get_all(), {})
         self.assertEqual(reloaded_devices.get_all(), {})
+
+    async def test_persistence_batch_commits_and_rolls_back(self):
+        database.initialise_database()
+        entities = EntityRegistry()
+
+        with entities.persistence_batch():
+            entities.register(
+                Entity(
+                    entity_id="light.one",
+                    entity_type="light",
+                    name="One"
+                )
+            )
+            entities.update_state(
+                "light.one",
+                "on",
+                {"brightness": 100},
+                True
+            )
+
+        reloaded = EntityRegistry()
+        reloaded.load()
+        self.assertEqual(
+            reloaded.get_state("light.one")["state"],
+            "on"
+        )
+
+        with self.assertRaises(RuntimeError):
+            with entities.persistence_batch():
+                entities.register(
+                    Entity(
+                        entity_id="light.rollback",
+                        entity_type="light",
+                        name="Rollback"
+                    )
+                )
+                raise RuntimeError("rollback")
+
+        reloaded.load()
+        self.assertIsNone(
+            reloaded.get("light.rollback")
+        )

@@ -13,6 +13,7 @@ from ...config_sources import (
 from ...events.entity_events import (
     EntityCommandEvent,
 )
+from ...core.entity_registry import entity_registry
 from ..homeassistant_auth import (
     get_homeassistant_connection_settings,
 )
@@ -272,10 +273,11 @@ class HomeAssistantConnector:
             }
         )
 
-        await self._entity_provider.import_states(
-            states,
-            self._publish_state
-        )
+        with entity_registry.persistence_batch():
+            await self._entity_provider.import_states(
+                states,
+                self._publish_state
+            )
 
 
     async def _subscribe_to_state_changes(

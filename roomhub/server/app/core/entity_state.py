@@ -7,13 +7,18 @@ class EntityState:
         self,
         state=None,
         attributes=None,
-        available=True
+        available=True,
+        last_updated=None
     ):
 
         self.state = state
         self.attributes = attributes or {}
         self.available = available
-        self.last_updated = datetime.now(UTC)
+        self.last_updated = (
+            last_updated
+            if last_updated is not None
+            else datetime.now(UTC)
+        )
 
 
     def update(
