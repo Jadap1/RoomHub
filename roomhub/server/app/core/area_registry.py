@@ -1,41 +1,41 @@
 from ..events.entity_events import (
-    FloorDiscoveredEvent,
+    AreaDiscoveredEvent,
 )
-from ..models.floor import Floor
+from ..models.area import Area
 
 
-class FloorRegistry:
+class AreaRegistry:
 
     def __init__(self) -> None:
-        self.floors: dict[str, Floor] = {}
+        self.areas: dict[str, Area] = {}
 
 
     def get(
         self,
-        floor_id: str
-    ) -> Floor | None:
+        area_id: str
+    ) -> Area | None:
 
-        return self.floors.get(floor_id)
+        return self.areas.get(area_id)
 
 
     def get_all(self) -> dict[str, dict]:
 
         return {
             key: value.model_dump()
-            for key, value in self.floors.items()
+            for key, value in self.areas.items()
         }
 
 
     async def handle_discovered(
         self,
-        event: FloorDiscoveredEvent
+        event: AreaDiscoveredEvent
     ) -> None:
 
-        self.floors[event.floor_id] = Floor(
-            floor_id=event.floor_id,
+        self.areas[event.area_id] = Area(
+            area_id=event.area_id,
             name=event.name,
-            level=event.level
+            floor_id=event.floor_id,
         )
 
 
-floor_registry = FloorRegistry()
+area_registry = AreaRegistry()
