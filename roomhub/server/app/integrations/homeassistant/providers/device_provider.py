@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ....core.event_bus import event_bus
+from ....core.device_registry import device_registry
 from ....events.entity_events import DeviceDiscoveredEvent, DeviceRemovedEvent
 
 
@@ -26,8 +27,11 @@ class HomeAssistantDeviceProvider:
     async def sync(self) -> None:
         devices = await self._send_request({"type": "config/device_registry/list"})
         current_ids = {device["id"] for device in devices}
+        known_ids = self._known_ids or set(
+            device_registry.devices
+        )
 
-        for device_id in self._known_ids - current_ids:
+        for device_id in known_ids - current_ids:
             await event_bus.publish(DeviceRemovedEvent(device_id=device_id))
 
         for device in devices:

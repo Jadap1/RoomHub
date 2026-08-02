@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ....core.event_bus import event_bus
+from ....core.floor_registry import floor_registry
 from ....events.entity_events import FloorDiscoveredEvent, FloorRemovedEvent
 
 
@@ -18,8 +19,11 @@ class HomeAssistantFloorProvider:
     async def sync(self) -> None:
         floors = await self._send_request({"type": "config/floor_registry/list"})
         current_ids = {floor["floor_id"] for floor in floors}
+        known_ids = self._known_ids or set(
+            floor_registry.floors
+        )
 
-        for floor_id in self._known_ids - current_ids:
+        for floor_id in known_ids - current_ids:
             await event_bus.publish(FloorRemovedEvent(floor_id=floor_id))
 
         for floor in floors:

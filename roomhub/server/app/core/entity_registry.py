@@ -1,3 +1,5 @@
+from contextlib import closing
+
 from ..models.entity import Entity
 from .entity_state import EntityState
 from .database import get_connection
@@ -40,7 +42,7 @@ class EntityRegistry:
 
     def save(self, entity):
 
-        with get_connection() as connection:
+        with closing(get_connection()) as connection, connection:
 
             connection.execute(
                 """
@@ -48,23 +50,35 @@ class EntityRegistry:
                 (
                     entity_id,
                     entity_type,
-                    name
+                    name,
+                    integration,
+                    device_id,
+                    area_id,
+                    platform,
+                    entity_category
                 )
-                VALUES (?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(entity_id)
                 DO UPDATE SET
                     entity_type = excluded.entity_type,
-                    name = excluded.name
+                    name = excluded.name,
+                    integration = excluded.integration,
+                    device_id = excluded.device_id,
+                    area_id = excluded.area_id,
+                    platform = excluded.platform,
+                    entity_category = excluded.entity_category
                 """,
                 (
                     entity.entity_id,
                     entity.entity_type,
-                    entity.name
+                    entity.name,
+                    entity.integration,
+                    entity.device_id,
+                    entity.area_id,
+                    entity.platform,
+                    entity.entity_category
                 )
             )
-
-        connection.commit()
-
 
     def get_all(self):
 
@@ -85,7 +99,12 @@ class EntityRegistry:
             SELECT
                 entity_id,
                 entity_type,
-                name
+                name,
+                integration,
+                device_id,
+                area_id,
+                platform,
+                entity_category
             FROM entities
             """
         ).fetchall()
@@ -97,7 +116,12 @@ class EntityRegistry:
             entity = Entity(
                 entity_id=row[0],
                 entity_type=row[1],
-                name=row[2]
+                name=row[2],
+                integration=row[3] or "homeassistant",
+                device_id=row[4],
+                area_id=row[5],
+                platform=row[6],
+                entity_category=row[7]
             )
 
             self.entities[

@@ -31,6 +31,9 @@ app = FastAPI(
 initialise_database()
 
 entity_registry.load()
+floor_registry.load()
+area_registry.load()
+device_registry.load()
 
 register_entities()
 

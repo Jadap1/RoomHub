@@ -1,8 +1,11 @@
+from contextlib import closing
+
 from ..events.entity_events import (
     AreaDiscoveredEvent,
     AreaRemovedEvent,
 )
 from ..models.area import Area
+from .database import get_connection
 
 
 class AreaRegistry:
@@ -27,16 +30,51 @@ class AreaRegistry:
         }
 
 
+    def load(self) -> None:
+
+        with closing(get_connection()) as connection, connection:
+            rows = connection.execute(
+                "SELECT area_id, name, floor_id "
+                "FROM areas"
+            ).fetchall()
+
+        self.areas = {
+            row[0]: Area(
+                area_id=row[0],
+                name=row[1],
+                floor_id=row[2]
+            )
+            for row in rows
+        }
+
+
+    def save(self, area: Area) -> None:
+
+        with closing(get_connection()) as connection, connection:
+            connection.execute(
+                """
+                INSERT INTO areas (area_id, name, floor_id)
+                VALUES (?, ?, ?)
+                ON CONFLICT(area_id) DO UPDATE SET
+                    name = excluded.name,
+                    floor_id = excluded.floor_id
+                """,
+                (area.area_id, area.name, area.floor_id)
+            )
+
+
     async def handle_discovered(
         self,
         event: AreaDiscoveredEvent
     ) -> None:
 
-        self.areas[event.area_id] = Area(
+        area = Area(
             area_id=event.area_id,
             name=event.name,
             floor_id=event.floor_id,
         )
+        self.areas[event.area_id] = area
+        self.save(area)
 
 
     async def handle_removed(
@@ -48,6 +86,12 @@ class AreaRegistry:
             event.area_id,
             None
         )
+
+        with closing(get_connection()) as connection, connection:
+            connection.execute(
+                "DELETE FROM areas WHERE area_id = ?",
+                (event.area_id,)
+            )
 
 
 area_registry = AreaRegistry()

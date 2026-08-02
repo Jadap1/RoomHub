@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 
@@ -43,7 +44,7 @@ def initialise_database():
 
     print("[DATABASE] Initialising database")
 
-    with get_connection() as connection:
+    with closing(get_connection()) as connection, connection:
 
         connection.execute(
             """
@@ -52,6 +53,65 @@ def initialise_database():
                 entity_id TEXT PRIMARY KEY,
                 entity_type TEXT NOT NULL,
                 name TEXT NOT NULL
+            )
+            """
+        )
+
+        entity_columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(entities)"
+            ).fetchall()
+        }
+
+        for column_name, column_type in {
+            "integration": "TEXT",
+            "device_id": "TEXT",
+            "area_id": "TEXT",
+            "platform": "TEXT",
+            "entity_category": "TEXT"
+        }.items():
+
+            if column_name not in entity_columns:
+                connection.execute(
+                    "ALTER TABLE entities "
+                    f"ADD COLUMN {column_name} "
+                    f"{column_type}"
+                )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS floors
+            (
+                floor_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                level INTEGER
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS areas
+            (
+                area_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                floor_id TEXT
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS devices
+            (
+                device_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                area_id TEXT,
+                manufacturer TEXT,
+                model TEXT,
+                config_entries TEXT NOT NULL,
+                via_device_id TEXT
             )
             """
         )

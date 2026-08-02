@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ....core.event_bus import event_bus
+from ....core.area_registry import area_registry
 from ....events.entity_events import AreaDiscoveredEvent, AreaRemovedEvent
 
 
@@ -18,8 +19,11 @@ class HomeAssistantAreaProvider:
     async def sync(self) -> None:
         areas = await self._send_request({"type": "config/area_registry/list"})
         current_ids = {area["area_id"] for area in areas}
+        known_ids = self._known_ids or set(
+            area_registry.areas
+        )
 
-        for area_id in self._known_ids - current_ids:
+        for area_id in known_ids - current_ids:
             await event_bus.publish(AreaRemovedEvent(area_id=area_id))
 
         for area in areas:
