@@ -192,7 +192,8 @@ class HomeAssistantConnector:
             settings.websocket_url,
             open_timeout=20,
             ping_interval=30,
-            ping_timeout=20
+            ping_timeout=20,
+            max_size=16 * 1024 * 1024
         ) as websocket:
 
             self._request_client.attach(websocket)
