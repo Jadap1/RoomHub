@@ -64,6 +64,8 @@ class HomeAssistantConfig(BaseModel):
 
     reconnect_delay_seconds: int = 5
 
+    assist_pipeline_name: str = "RoomHub Local"
+
     entity_filter: EntityFilterConfig = Field(
         default_factory=EntityFilterConfig
     )

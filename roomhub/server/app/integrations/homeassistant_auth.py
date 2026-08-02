@@ -1,7 +1,10 @@
 import os
 from dataclasses import dataclass
 
-from ..config_sources import is_homeassistant_app
+from ..config_sources import (
+    is_homeassistant_app,
+    load_app_options,
+)
 from .homeassistant_config_loader import load_homeassistant_config
 
 
@@ -46,4 +49,20 @@ def get_homeassistant_connection_settings(
         websocket_url=websocket_url,
         access_token=config.access_token,
         mode="local_development"
+    )
+
+
+def get_homeassistant_assist_pipeline_name() -> str:
+
+    if is_homeassistant_app():
+        return str(
+            load_app_options().get(
+                "assist_pipeline_name",
+                "RoomHub Local"
+            )
+        )
+
+    return (
+        load_homeassistant_config()
+        .assist_pipeline_name
     )

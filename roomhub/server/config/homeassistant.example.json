@@ -2,6 +2,7 @@
   "url": "http://homeassistant.local:8123",
   "access_token": "replace-with-long-lived-access-token",
   "reconnect_delay_seconds": 5,
+  "assist_pipeline_name": "RoomHub Local",
   "entity_filter": {
     "mode": "all",
     "patterns": [],

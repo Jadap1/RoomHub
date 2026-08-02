@@ -35,6 +35,45 @@ class FakeConnector:
         return None
 
 
+class FakeVoiceAudioConnection:
+    instances = []
+
+    def __init__(self):
+        self.frames = []
+        self.finished_for = None
+        self.closed = False
+        self.__class__.instances.append(self)
+
+    async def start(self, payload):
+        return {
+            "version": "1.0",
+            "type": "voice.audio.ready",
+            "payload": payload,
+        }
+
+    async def send_audio(self, audio):
+        self.frames.append(audio)
+        return None
+
+    async def finish(self, endpoint_id):
+        self.finished_for = endpoint_id
+        return {
+            "version": "1.0",
+            "type": "voice.intent.accepted",
+            "payload": {"status": "accepted"},
+        }
+
+    async def cancel(self):
+        return {
+            "version": "1.0",
+            "type": "voice.audio.cancelled",
+            "payload": {"status": "cancelled"},
+        }
+
+    async def close(self):
+        self.closed = True
+
+
 async def get_json(app, path):
     sent = []
     received = False
@@ -165,3 +204,87 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(
                     app.state.homeassistant_task.done()
                 )
+
+    async def test_websocket_routes_binary_audio_after_registration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "roomhub.db"
+            connector = FakeConnector()
+            FakeVoiceAudioConnection.instances.clear()
+
+            with (
+                patch.object(database, "DATABASE", database_path),
+                patch(
+                    "app.app_factory.VoiceAudioConnection",
+                    FakeVoiceAudioConnection,
+                ),
+            ):
+                app = create_app(
+                    database_path=database_path,
+                    homeassistant_connector=connector,
+                )
+                messages = iter([
+                    {"type": "websocket.connect"},
+                    {
+                        "type": "websocket.receive",
+                        "text": json.dumps({
+                            "type": "endpoint.register",
+                            "payload": {
+                                "device_id": "kitchen-panel",
+                                "device_name": "Kitchen Panel",
+                                "room": "Kitchen",
+                                "capabilities": ["microphone"],
+                            },
+                        }),
+                    },
+                    {
+                        "type": "websocket.receive",
+                        "bytes": b"\x01\x02",
+                    },
+                    {
+                        "type": "websocket.receive",
+                        "text": json.dumps({
+                            "type": "voice.audio.end",
+                            "source": "kitchen-panel",
+                            "payload": {},
+                        }),
+                    },
+                    {"type": "websocket.disconnect", "code": 1000},
+                ])
+                sent = []
+
+                async def receive():
+                    return next(messages)
+
+                async def send(message):
+                    sent.append(message)
+
+                await app(
+                    {
+                        "type": "websocket",
+                        "asgi": {"version": "3.0"},
+                        "scheme": "ws",
+                        "path": "/ws",
+                        "raw_path": b"/ws",
+                        "query_string": b"",
+                        "headers": [],
+                        "client": ("test", 1),
+                        "server": ("test", 80),
+                        "subprotocols": [],
+                    },
+                    receive,
+                    send,
+                )
+
+            audio = FakeVoiceAudioConnection.instances[0]
+            self.assertEqual(audio.frames, [b"\x01\x02"])
+            self.assertEqual(audio.finished_for, "kitchen-panel")
+            self.assertTrue(audio.closed)
+            responses = [
+                json.loads(message["text"])
+                for message in sent
+                if message["type"] == "websocket.send"
+            ]
+            self.assertEqual(
+                [response["type"] for response in responses],
+                ["endpoint.registered", "voice.intent.accepted"],
+            )

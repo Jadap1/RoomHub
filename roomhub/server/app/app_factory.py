@@ -19,6 +19,7 @@ from .core.floor_registry import floor_registry
 from .core.registry import registry
 from .handlers.dispatcher import dispatch
 from .integrations.registry import homeassistant
+from .services.voice_audio_service import VoiceAudioConnection
 
 
 def create_app(
@@ -136,19 +137,87 @@ def create_app(
     async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
         endpoint_id = None
+        audio = VoiceAudioConnection()
         try:
             while True:
-                data = await websocket.receive_text()
-                message = json.loads(data)
-                if message["type"] == "endpoint.register":
+                event = await websocket.receive()
+                if event["type"] == "websocket.disconnect":
+                    break
+
+                binary = event.get("bytes")
+                if binary is not None:
+                    response = await audio.send_audio(binary)
+                    if response is not None:
+                        await websocket.send_json(response)
+                    continue
+
+                data = event.get("text")
+                if data is None:
+                    continue
+                try:
+                    message = json.loads(data)
+                except json.JSONDecodeError:
+                    await websocket.send_json({
+                        "version": "1.0",
+                        "type": "error",
+                        "payload": {"message": "Invalid JSON"},
+                    })
+                    continue
+
+                message_type = message.get("type")
+                if message_type == "endpoint.register":
                     endpoint_id = message["payload"]["device_id"]
                     await manager.connect(
                         endpoint_id,
                         websocket
                     )
-                response = await dispatch(message)
+                    response = await dispatch(message)
+                elif (
+                    isinstance(message_type, str)
+                    and message_type.startswith("voice.audio.")
+                ):
+                    if endpoint_id is None:
+                        response = {
+                            "version": "1.0",
+                            "type": "voice.audio.rejected",
+                            "payload": {
+                                "status": "rejected",
+                                "reason": "endpoint_not_registered",
+                            },
+                        }
+                    elif message.get("source") not in (None, endpoint_id):
+                        response = {
+                            "version": "1.0",
+                            "type": "voice.audio.rejected",
+                            "payload": {
+                                "status": "rejected",
+                                "reason": "source_mismatch",
+                            },
+                        }
+                    elif message_type == "voice.audio.start":
+                        response = await audio.start(
+                            message.get("payload") or {}
+                        )
+                    elif message_type == "voice.audio.end":
+                        response = await audio.finish(endpoint_id)
+                    elif message_type == "voice.audio.cancel":
+                        response = await audio.cancel()
+                    else:
+                        response = {
+                            "version": "1.0",
+                            "type": "voice.audio.rejected",
+                            "payload": {
+                                "status": "rejected",
+                                "reason": "unknown_audio_message",
+                            },
+                        }
+                else:
+                    response = await dispatch(message)
                 await websocket.send_json(response)
         except WebSocketDisconnect:
+            pass
+        finally:
+            await audio.close()
             if endpoint_id:
                 endpoint = registry.get(endpoint_id)
                 if endpoint:
