@@ -13,7 +13,6 @@ from ...config_sources import (
 from ...core.event_bus import event_bus
 from ...events.entity_events import (
     EntityCommandEvent,
-    EntityDiscoveredEvent,
     EntityStateChangedEvent,
 )
 from ..homeassistant_auth import (
@@ -27,6 +26,9 @@ from ..homeassistant_config_loader import (
 )
 from .authentication import authenticate
 from .commands import HomeAssistantCommands
+from .providers.entity_provider import (
+    HomeAssistantEntityProvider,
+)
 from .request_client import (
     HomeAssistantRequestClient,
 )
@@ -54,6 +56,11 @@ class HomeAssistantConnector:
         )
         self._commands = HomeAssistantCommands(
             self._send_request
+        )
+        self._entity_provider = (
+            HomeAssistantEntityProvider(
+                self._entity_filter
+            )
         )
 
 
@@ -226,33 +233,9 @@ class HomeAssistantConnector:
             }
         )
 
-        imported_count = 0
-
-        for state_data in states:
-
-            entity_id = state_data.get(
-                "entity_id"
-            )
-
-            if not entity_id:
-                continue
-
-            if not self._entity_filter.allows(
-                entity_id
-            ):
-                continue
-
-
-            await self._publish_state(
-                state_data
-            )
-
-            imported_count += 1
-
-
-        logger.info(
-            "Imported %s Home Assistant entities",
-            imported_count
+        await self._entity_provider.import_states(
+            states,
+            self._publish_state
         )
 
 
@@ -376,7 +359,7 @@ class HomeAssistantConnector:
             return
 
 
-        if not self._entity_filter.allows(
+        if not self._entity_provider.allows(
             entity_id
         ):
             return
@@ -411,24 +394,8 @@ class HomeAssistantConnector:
             {}
         )
 
-        friendly_name = attributes.get(
-            "friendly_name",
-            entity_id
-        )
-
-        entity_type = entity_id.split(
-            ".",
-            1
-        )[0]
-
-
-        await event_bus.publish(
-            EntityDiscoveredEvent(
-                entity_id=entity_id,
-                entity_type=entity_type,
-                name=friendly_name,
-                attributes=attributes
-            )
+        await self._entity_provider.publish_discovered(
+            state_data
         )
 
 
