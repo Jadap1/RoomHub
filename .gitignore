@@ -18,3 +18,10 @@ server/config/homeassistant.json
 /roomhub/server/roomhub.db
 /roomhub/server/roomhub.db-wal
 /roomhub/server/roomhub.db-shm
+
+# ESP-IDF firmware build output and local configuration
+/firmware/endpoint/build/
+/firmware/endpoint/managed_components/
+/firmware/endpoint/dependencies.lock
+/firmware/endpoint/sdkconfig
+/firmware/endpoint/sdkconfig.old

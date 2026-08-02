@@ -80,3 +80,10 @@ loads application options from `/data/options.json` by default. Set
 ## Project documentation
 
 The design goals and architecture are documented under [`docs`](docs/).
+
+## Endpoint firmware
+
+The portable ESP32-P4 endpoint firmware starts under
+[`firmware/endpoint`](firmware/endpoint/). Its first board profile is the
+M5Stack Tab5, but wake-word and voice-session behaviour is kept independent
+from the board support package.
