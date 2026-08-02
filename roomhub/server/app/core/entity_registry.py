@@ -1,6 +1,10 @@
 from ..models.entity import Entity
 from .entity_state import EntityState
 from .database import get_connection
+from ..events.entity_events import (
+    EntityDiscoveredEvent,
+    EntityStateChangedEvent,
+)
 
 
 class EntityRegistry:
@@ -18,9 +22,11 @@ class EntityRegistry:
             entity.entity_id
         ] = entity
 
-        self.states[
-            entity.entity_id
-        ] = EntityState()
+        if entity.entity_id not in self.states:
+
+            self.states[
+                entity.entity_id
+            ] = EntityState()
 
         self.save(entity)
 
@@ -34,30 +40,30 @@ class EntityRegistry:
 
     def save(self, entity):
 
-        connection = get_connection()
+        with get_connection() as connection:
 
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO entities
-            (
-                entity_id,
-                entity_type,
-                name
+            connection.execute(
+                """
+                INSERT INTO entities
+                (
+                    entity_id,
+                    entity_type,
+                    name
+                )
+                VALUES (?, ?, ?)
+                ON CONFLICT(entity_id)
+                DO UPDATE SET
+                    entity_type = excluded.entity_type,
+                    name = excluded.name
+                """,
+                (
+                    entity.entity_id,
+                    entity.entity_type,
+                    entity.name
+                )
             )
-            VALUES (?, ?, ?)
-            """,
-            (
-                entity.entity_id,
-                entity.entity_type,
-                entity.name
-            )
-        )
 
         connection.commit()
-
-        connection.close()
 
 
     def get_all(self):
@@ -150,6 +156,55 @@ class EntityRegistry:
         # We will add state persistence separately.
 
         pass
+    async def handle_entity_discovered(
+        self,
+        event: EntityDiscoveredEvent
+    ) -> None:
+
+        existing = self.get(
+            event.entity_id
+        )
+
+        if existing:
+
+            existing.name = event.name
+            existing.entity_type = event.entity_type
+
+            self.save(existing)
+
+            return
+
+
+        self.register(
+            Entity(
+                entity_id=event.entity_id,
+                entity_type=event.entity_type,
+                name=event.name,
+                integration="homeassistant"
+            )
+        )
+
+
+    async def handle_state_changed(
+        self,
+        event: EntityStateChangedEvent
+    ) -> None:
+
+        self.update_state(
+            entity_id=event.entity_id,
+            state=event.state,
+            attributes=event.attributes
+        )
+
+        cached_state = self.states.get(
+            event.entity_id
+        )
+
+        if cached_state:
+
+            cached_state.available = (
+                event.available
+            )
 
 
 entity_registry = EntityRegistry()

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import json
+import asyncio
 
 from .config import PROJECT_NAME, VERSION
 from .services.endpoint_service import register_endpoint
@@ -15,6 +16,7 @@ from .core.entity_registry import entity_registry
 from .core.database import initialise_database
 from .core.entity_registry import entity_registry
 from .core.event_subscriptions import register_event_subscriptions
+from .integrations.registry import homeassistant
 
 register_commands()
 
@@ -32,6 +34,31 @@ register_entities()
 register_commands()
 
 register_event_subscriptions()
+
+@app.on_event("startup")
+async def start_homeassistant_connector():
+
+    app.state.homeassistant_task = (
+        asyncio.create_task(
+            homeassistant.start()
+        )
+    )
+
+
+@app.on_event("shutdown")
+async def stop_homeassistant_connector():
+
+    await homeassistant.stop()
+
+    task = getattr(
+        app.state,
+        "homeassistant_task",
+        None
+    )
+
+    if task:
+
+        task.cancel()
 
 @app.get("/entities")
 async def entities():
@@ -55,7 +82,12 @@ async def health():
         "version": VERSION,
         "entities": len(
             entity_registry.entities
-        )
+        ),
+        "homeassistant": {
+            "connected": (
+                homeassistant.connected
+            )
+        }
     }
 
 @app.get("/endpoints")
