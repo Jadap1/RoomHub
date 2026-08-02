@@ -40,6 +40,14 @@ class EndpointRuntime:
 
             await self.handle_input_received(message)
 
+        elif message_type in {
+            "voice.intent.accepted",
+            "voice.intent.rejected",
+            "voice.intent.failed"
+        }:
+
+            await self.handle_voice_intent(message)
+
 
         else:
 
@@ -75,4 +83,12 @@ class EndpointRuntime:
         print(
         f"[INPUT] Server acknowledged input: {status}"
     )
-    
+
+    async def handle_voice_intent(self, message):
+
+        payload = message.get("payload", {})
+
+        print(
+            "[VOICE] "
+            f"{message['type']}: {payload}"
+        )

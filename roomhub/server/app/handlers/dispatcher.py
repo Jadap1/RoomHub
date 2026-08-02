@@ -1,6 +1,7 @@
 from .endpoint_handler import handle_endpoint_register
 from .heartbeat_handler import handle_heartbeat
 from .input_handler import handle_input
+from .voice_handler import handle_voice_transcript
 from ..core.command_router import command_router
 
 
@@ -21,6 +22,10 @@ async def dispatch(message):
     elif message_type == "input.button":
 
         return await handle_input(message)
+
+    elif message_type == "voice.transcript":
+
+        return await handle_voice_transcript(message)
 
 
     return {

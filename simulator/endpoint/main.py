@@ -75,7 +75,7 @@ async def keyboard_loop():
 
         key = await asyncio.to_thread(
             input,
-            "\nPress 1/2/3: "
+            "\nPress 1/2/3 for buttons or 4 for voice text: "
         )
 
         if key == "1":
@@ -104,6 +104,21 @@ async def keyboard_loop():
                 "input.button",
                 {
                     "button": "music"
+                }
+            )
+
+
+        elif key == "4":
+
+            transcript = await asyncio.to_thread(
+                input,
+                "Say (type) a command: "
+            )
+
+            await runtime.input.send_event(
+                "voice.transcript",
+                {
+                    "text": transcript
                 }
             )
 
