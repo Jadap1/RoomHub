@@ -22,11 +22,18 @@ class HomeAssistantEntityProvider:
         send_request: Callable[
             [dict[str, Any]],
             Awaitable[Any]
+        ],
+        get_device_area_id: Callable[
+            [str],
+            str | None
         ]
     ) -> None:
 
         self._entity_filter = entity_filter
         self._send_request = send_request
+        self._get_device_area_id = (
+            get_device_area_id
+        )
         self._registry_entries: dict[
             str,
             dict[str, Any]
@@ -132,18 +139,27 @@ class HomeAssistantEntityProvider:
             {}
         )
 
+        device_id = registry_entry.get(
+            "device_id"
+        )
+
+        area_id = registry_entry.get(
+            "area_id"
+        )
+
+        if area_id is None and device_id:
+            area_id = self._get_device_area_id(
+                device_id
+            )
+
 
         await event_bus.publish(
             EntityDiscoveredEvent(
                 entity_id=entity_id,
                 entity_type=entity_type,
                 name=friendly_name,
-                device_id=registry_entry.get(
-                    "device_id"
-                ),
-                area_id=registry_entry.get(
-                    "area_id"
-                ),
+                device_id=device_id,
+                area_id=area_id,
                 platform=registry_entry.get(
                     "platform"
                 ),

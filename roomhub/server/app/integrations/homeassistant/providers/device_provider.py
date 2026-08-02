@@ -14,6 +14,14 @@ class HomeAssistantDeviceProvider:
     def __init__(self, send_request: Callable[[dict[str, Any]], Awaitable[Any]]) -> None:
         self._send_request = send_request
         self._known_ids: set[str] = set()
+        self._area_ids: dict[str, str | None] = {}
+
+    def get_area_id(
+        self,
+        device_id: str
+    ) -> str | None:
+
+        return self._area_ids.get(device_id)
 
     async def sync(self) -> None:
         devices = await self._send_request({"type": "config/device_registry/list"})
@@ -39,5 +47,9 @@ class HomeAssistantDeviceProvider:
             )
 
         self._known_ids = current_ids
+        self._area_ids = {
+            device["id"]: device.get("area_id")
+            for device in devices
+        }
 
         logger.info("Imported %s Home Assistant devices", len(devices))

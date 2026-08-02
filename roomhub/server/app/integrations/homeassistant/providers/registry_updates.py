@@ -113,6 +113,7 @@ class HomeAssistantRegistryUpdates:
 
                 if "device_registry_updated" in event_types:
                     await self._device_provider.sync()
+                    await self._refresh_entity_states()
 
                 if "entity_registry_updated" in event_types:
                     await self._entity_provider.sync_registry()

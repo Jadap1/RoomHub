@@ -64,10 +64,14 @@ class HomeAssistantConnector:
         self._commands = HomeAssistantCommands(
             self._send_request
         )
+        self._floor_provider = HomeAssistantFloorProvider(self._send_request)
+        self._area_provider = HomeAssistantAreaProvider(self._send_request)
+        self._device_provider = HomeAssistantDeviceProvider(self._send_request)
         self._entity_provider = (
             HomeAssistantEntityProvider(
                 self._entity_filter,
-                self._send_request
+                self._send_request,
+                self._device_provider.get_area_id
             )
         )
         self._state_provider = (
@@ -76,9 +80,6 @@ class HomeAssistantConnector:
                 self._send_request
             )
         )
-        self._floor_provider = HomeAssistantFloorProvider(self._send_request)
-        self._area_provider = HomeAssistantAreaProvider(self._send_request)
-        self._device_provider = HomeAssistantDeviceProvider(self._send_request)
         self._registry_updates = HomeAssistantRegistryUpdates(
             self._floor_provider,
             self._area_provider,
