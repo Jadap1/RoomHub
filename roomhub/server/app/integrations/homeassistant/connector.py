@@ -10,10 +10,8 @@ from ...config_sources import (
     is_homeassistant_app,
     load_app_options,
 )
-from ...core.event_bus import event_bus
 from ...events.entity_events import (
     EntityCommandEvent,
-    EntityStateChangedEvent,
 )
 from ..homeassistant_auth import (
     get_homeassistant_connection_settings,
@@ -28,6 +26,9 @@ from .authentication import authenticate
 from .commands import HomeAssistantCommands
 from .providers.entity_provider import (
     HomeAssistantEntityProvider,
+)
+from .providers.state_provider import (
+    HomeAssistantStateProvider,
 )
 from .request_client import (
     HomeAssistantRequestClient,
@@ -60,6 +61,12 @@ class HomeAssistantConnector:
         self._entity_provider = (
             HomeAssistantEntityProvider(
                 self._entity_filter
+            )
+        )
+        self._state_provider = (
+            HomeAssistantStateProvider(
+                self._entity_provider,
+                self._send_request
             )
         )
 
@@ -243,11 +250,7 @@ class HomeAssistantConnector:
         self
     ) -> None:
 
-        await self._send_request(
-            {
-                "type": "subscribe_events",
-                "event_type": "state_changed"
-            }
+        await self._state_provider.subscribe(
         )
 
     async def _send_request(
@@ -328,55 +331,8 @@ class HomeAssistantConnector:
         message: dict[str, Any]
     ) -> None:
 
-        event = message.get(
-            "event",
-            {}
-        )
-
-        if (
-            event.get("event_type")
-            != "state_changed"
-        ):
-
-            return
-
-
-        event_data = event.get(
-            "data",
-            {}
-        )
-
-        entity_id = event_data.get(
-            "entity_id"
-        )
-
-        new_state = event_data.get(
-            "new_state"
-        )
-
-
-        if not entity_id:
-            return
-
-
-        if not self._entity_provider.allows(
-            entity_id
-        ):
-            return
-
-
-        if new_state is None:
-
-            logger.info(
-                "Home Assistant entity removed: %s",
-                entity_id
-            )
-
-            return
-
-
-        await self._publish_state(
-            new_state
+        await self._state_provider.handle_event(
+            message
         )
 
 
@@ -385,38 +341,8 @@ class HomeAssistantConnector:
         state_data: dict[str, Any]
     ) -> None:
 
-        entity_id = state_data[
-            "entity_id"
-        ]
-
-        attributes = state_data.get(
-            "attributes",
-            {}
-        )
-
-        await self._entity_provider.publish_discovered(
+        await self._state_provider.publish_state(
             state_data
-        )
-
-
-        state_value = state_data.get(
-            "state",
-            "unknown"
-        )
-
-        available = state_value not in {
-            "unavailable",
-            "unknown"
-        }
-
-
-        await event_bus.publish(
-            EntityStateChangedEvent(
-                entity_id=entity_id,
-                state=state_value,
-                attributes=attributes,
-                available=available
-            )
         )
 
 
