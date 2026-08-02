@@ -1,5 +1,6 @@
 from ..events.entity_events import (
     FloorDiscoveredEvent,
+    FloorRemovedEvent,
 )
 from ..models.floor import Floor
 
@@ -35,6 +36,17 @@ class FloorRegistry:
             floor_id=event.floor_id,
             name=event.name,
             level=event.level
+        )
+
+
+    async def handle_removed(
+        self,
+        event: FloorRemovedEvent
+    ) -> None:
+
+        self.floors.pop(
+            event.floor_id,
+            None
         )
 
 

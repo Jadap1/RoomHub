@@ -1,5 +1,6 @@
 from ..events.entity_events import (
     AreaDiscoveredEvent,
+    AreaRemovedEvent,
 )
 from ..models.area import Area
 
@@ -35,6 +36,17 @@ class AreaRegistry:
             area_id=event.area_id,
             name=event.name,
             floor_id=event.floor_id,
+        )
+
+
+    async def handle_removed(
+        self,
+        event: AreaRemovedEvent
+    ) -> None:
+
+        self.areas.pop(
+            event.area_id,
+            None
         )
 
 

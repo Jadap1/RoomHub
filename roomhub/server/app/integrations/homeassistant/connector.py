@@ -33,6 +33,9 @@ from .providers.floor_provider import HomeAssistantFloorProvider
 from .providers.state_provider import (
     HomeAssistantStateProvider,
 )
+from .providers.registry_updates import (
+    HomeAssistantRegistryUpdates,
+)
 from .request_client import (
     HomeAssistantRequestClient,
 )
@@ -76,6 +79,14 @@ class HomeAssistantConnector:
         self._floor_provider = HomeAssistantFloorProvider(self._send_request)
         self._area_provider = HomeAssistantAreaProvider(self._send_request)
         self._device_provider = HomeAssistantDeviceProvider(self._send_request)
+        self._registry_updates = HomeAssistantRegistryUpdates(
+            self._floor_provider,
+            self._area_provider,
+            self._device_provider,
+            self._entity_provider,
+            self._initial_state_sync,
+            self._send_request
+        )
 
 
     def _load_entity_filter(
@@ -159,6 +170,8 @@ class HomeAssistantConnector:
         if self._receive_task:
 
             self._receive_task.cancel()
+
+        await self._registry_updates.stop()
 
 
     def _get_reconnect_delay(self) -> int:
@@ -270,6 +283,7 @@ class HomeAssistantConnector:
 
         await self._state_provider.subscribe(
         )
+        await self._registry_updates.subscribe()
 
     async def _send_request(
         self,
@@ -350,6 +364,9 @@ class HomeAssistantConnector:
     ) -> None:
 
         await self._state_provider.handle_event(
+            message
+        )
+        await self._registry_updates.handle_event(
             message
         )
 

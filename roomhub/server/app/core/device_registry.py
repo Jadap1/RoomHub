@@ -1,5 +1,6 @@
 from ..events.entity_events import (
     DeviceDiscoveredEvent,
+    DeviceRemovedEvent,
 )
 from ..models.device import Device
 
@@ -39,6 +40,17 @@ class DeviceRegistry:
             model=event.model,
             config_entries=event.config_entries,
             via_device_id=event.via_device_id
+        )
+
+
+    async def handle_removed(
+        self,
+        event: DeviceRemovedEvent
+    ) -> None:
+
+        self.devices.pop(
+            event.device_id,
+            None
         )
 
 

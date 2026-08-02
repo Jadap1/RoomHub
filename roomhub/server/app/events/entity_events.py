@@ -43,10 +43,18 @@ class FloorDiscoveredEvent(BaseModel):
     level: int | None = None
 
 
+class FloorRemovedEvent(BaseModel):
+    floor_id: str
+
+
 class AreaDiscoveredEvent(BaseModel):
     area_id: str
     name: str
     floor_id: str | None = None
+
+
+class AreaRemovedEvent(BaseModel):
+    area_id: str
 
 
 class DeviceDiscoveredEvent(BaseModel):
@@ -62,3 +70,7 @@ class DeviceDiscoveredEvent(BaseModel):
     )
 
     via_device_id: str | None = None
+
+
+class DeviceRemovedEvent(BaseModel):
+    device_id: str

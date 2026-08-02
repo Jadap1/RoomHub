@@ -13,8 +13,11 @@ from .floor_registry import floor_registry
 
 from ..events.entity_events import (
     AreaDiscoveredEvent,
+    AreaRemovedEvent,
     DeviceDiscoveredEvent,
+    DeviceRemovedEvent,
     FloorDiscoveredEvent,
+    FloorRemovedEvent,
 )
 
 def register_event_subscriptions() -> None:
@@ -37,13 +40,25 @@ def register_event_subscriptions() -> None:
         FloorDiscoveredEvent,
         floor_registry.handle_discovered
     )
+    event_bus.subscribe(
+        FloorRemovedEvent,
+        floor_registry.handle_removed
+    )
 
     event_bus.subscribe(
         AreaDiscoveredEvent,
         area_registry.handle_discovered
     )
+    event_bus.subscribe(
+        AreaRemovedEvent,
+        area_registry.handle_removed
+    )
 
     event_bus.subscribe(
         DeviceDiscoveredEvent,
         device_registry.handle_discovered
+    )
+    event_bus.subscribe(
+        DeviceRemovedEvent,
+        device_registry.handle_removed
     )
