@@ -119,7 +119,11 @@ Purpose:
 Ends audio input after local silence detection. Core transcribes the utterance
 with the configured Home Assistant Assist pipeline and passes the transcript to
 RoomHub's safe intent resolver. The resulting `voice.intent.*` response includes
-the transcript in its payload.
+the transcript in its payload. When Piper synthesis succeeds, the payload also
+contains a `speech` object with an audio `url` and `mime_type`. Failure to create
+speech does not change the intent result; `speech_status` is then `unavailable`.
+The audio URL is absolute so endpoints do not need Home Assistant connection
+details or credentials.
 
 ---
 

@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from app.integrations.homeassistant.assist_pipeline import (
     HomeAssistantAssistError,
@@ -50,6 +51,21 @@ class FakeIntentService:
         }
 
 
+class FakeTextToSpeechClient:
+    def __init__(self):
+        self.calls = []
+        self.error = None
+
+    async def synthesize(self, text):
+        self.calls.append(text)
+        if self.error:
+            raise self.error
+        return SimpleNamespace(
+            url="http://homeassistant.local/response.mp3",
+            mime_type="audio/mpeg",
+        )
+
+
 class VoiceAudioTests(unittest.IsolatedAsyncioTestCase):
     def make_connection(self):
         self.sessions = []
@@ -60,7 +76,12 @@ class VoiceAudioTests(unittest.IsolatedAsyncioTestCase):
             return session
 
         self.intent_service = FakeIntentService()
-        return VoiceAudioConnection(factory, self.intent_service)
+        self.tts = FakeTextToSpeechClient()
+        return VoiceAudioConnection(
+            factory,
+            self.intent_service,
+            lambda: self.tts,
+        )
 
     async def test_streams_post_wake_audio_into_safe_intent_path(self):
         connection = self.make_connection()
@@ -80,6 +101,14 @@ class VoiceAudioTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             response["payload"]["transcript"],
             "turn on the kitchen light",
+        )
+        self.assertEqual(self.tts.calls, ["Done."])
+        self.assertEqual(
+            response["payload"]["speech"],
+            {
+                "url": "http://homeassistant.local/response.mp3",
+                "mime_type": "audio/mpeg",
+            },
         )
 
     async def test_rejects_audio_without_active_wake_session(self):
@@ -126,3 +155,16 @@ class VoiceAudioTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response["type"], "voice.audio.failed")
         self.assertEqual(self.intent_service.calls, [])
+
+    async def test_tts_failure_preserves_successful_intent(self):
+        connection = self.make_connection()
+        self.tts.error = RuntimeError("tts unavailable")
+        await connection.start(VALID_AUDIO)
+
+        response = await connection.finish("kitchen-panel")
+
+        self.assertEqual(response["type"], "voice.intent.accepted")
+        self.assertEqual(
+            response["payload"]["speech_status"],
+            "unavailable",
+        )

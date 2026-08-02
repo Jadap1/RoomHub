@@ -5,10 +5,14 @@ from ..integrations.homeassistant.assist_pipeline import (
     HomeAssistantAssistError,
     HomeAssistantSpeechToTextSession,
 )
+from ..integrations.homeassistant.tts_pipeline import (
+    HomeAssistantTextToSpeechClient,
+)
 from .voice_intent_service import voice_intent_service
 
 
 SessionFactory = Callable[..., HomeAssistantSpeechToTextSession]
+TextToSpeechFactory = Callable[[], HomeAssistantTextToSpeechClient]
 
 
 def _message(message_type: str, **payload: Any) -> dict[str, Any]:
@@ -24,9 +28,13 @@ class VoiceAudioConnection:
         self,
         session_factory: SessionFactory = HomeAssistantSpeechToTextSession,
         intent_service=voice_intent_service,
+        text_to_speech_factory: TextToSpeechFactory = (
+            HomeAssistantTextToSpeechClient
+        ),
     ) -> None:
         self._session_factory = session_factory
         self._intent_service = intent_service
+        self._text_to_speech_factory = text_to_speech_factory
         self._session: HomeAssistantSpeechToTextSession | None = None
 
     async def start(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -141,6 +149,18 @@ class VoiceAudioConnection:
             **response.get("payload", {}),
             "transcript": transcript,
         }
+        speech_text = self._speech_text(response)
+        try:
+            speech = await self._text_to_speech_factory().synthesize(
+                speech_text
+            )
+        except Exception:
+            response["payload"]["speech_status"] = "unavailable"
+        else:
+            response["payload"]["speech"] = {
+                "url": speech.url,
+                "mime_type": speech.mime_type,
+            }
         return response
 
     async def cancel(self) -> dict[str, Any]:
@@ -157,3 +177,16 @@ class VoiceAudioConnection:
         self._session = None
         if session is not None:
             await session.abort()
+
+    @staticmethod
+    def _speech_text(response: dict[str, Any]) -> str:
+        response_type = response.get("type")
+        payload = response.get("payload") or {}
+        if response_type == "voice.intent.accepted":
+            return "Done."
+        if response_type == "voice.intent.rejected":
+            message = payload.get("message")
+            if isinstance(message, str) and message.strip():
+                return message.strip()
+            return "Sorry, I did not understand that command."
+        return "Sorry, I could not complete that command."

@@ -66,3 +66,19 @@ def get_homeassistant_assist_pipeline_name() -> str:
         load_homeassistant_config()
         .assist_pipeline_name
     )
+
+
+def get_homeassistant_public_url() -> str:
+
+    if is_homeassistant_app():
+        public_url = load_app_options().get(
+            "homeassistant_public_url"
+        )
+        if not isinstance(public_url, str) or not public_url.strip():
+            raise RuntimeError(
+                "homeassistant_public_url must be configured "
+                "for endpoint audio playback"
+            )
+        return public_url.rstrip("/")
+
+    return load_homeassistant_config().url.rstrip("/")
