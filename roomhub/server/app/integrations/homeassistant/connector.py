@@ -26,6 +26,7 @@ from ..homeassistant_config_loader import (
     load_homeassistant_config,
 )
 from .authentication import authenticate
+from .commands import HomeAssistantCommands
 from .request_client import (
     HomeAssistantRequestClient,
 )
@@ -50,6 +51,9 @@ class HomeAssistantConnector:
         )
         self._request_client = (
             HomeAssistantRequestClient()
+        )
+        self._commands = HomeAssistantCommands(
+            self._send_request
         )
 
 
@@ -454,16 +458,8 @@ class HomeAssistantConnector:
         event: EntityCommandEvent
     ) -> None:
 
-        domain = event.entity_id.split(
-            ".",
-            1
-        )[0]
-
-        await self.call_service(
-            domain=domain,
-            service=event.command,
-            entity_id=event.entity_id,
-            service_data=event.data
+        await self._commands.handle_entity_command(
+            event
         )
 
 
@@ -475,16 +471,9 @@ class HomeAssistantConnector:
         service_data: dict | None = None
     ) -> None:
 
-        await self._send_request(
-            {
-                "type": "call_service",
-                "domain": domain,
-                "service": service,
-                "service_data": (
-                    service_data or {}
-                ),
-                "target": {
-                    "entity_id": entity_id
-                }
-            }
+        await self._commands.call_service(
+            domain=domain,
+            service=service,
+            entity_id=entity_id,
+            service_data=service_data
         )
