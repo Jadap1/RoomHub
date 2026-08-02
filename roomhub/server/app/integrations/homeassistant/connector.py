@@ -15,9 +15,6 @@ from ...events.entity_events import (
     EntityCommandEvent,
     EntityDiscoveredEvent,
     EntityStateChangedEvent,
-    FloorDiscoveredEvent,
-    AreaDiscoveredEvent,
-    DeviceDiscoveredEvent,
 )
 from ..homeassistant_auth import (
     get_homeassistant_connection_settings,
@@ -27,6 +24,9 @@ from ..homeassistant_config import (
 )
 from ..homeassistant_config_loader import (
     load_homeassistant_config,
+)
+from .request_client import (
+    HomeAssistantRequestClient,
 )
 
 
@@ -40,18 +40,15 @@ class HomeAssistantConnector:
         self.connected = False
 
         self._websocket = None
-        self._next_message_id = 1
-
-        self._pending_requests: dict[
-            int,
-            asyncio.Future
-        ] = {}
 
         self._receive_task = None
         self._stop_requested = False
 
         self._entity_filter = (
             self._load_entity_filter()
+        )
+        self._request_client = (
+            HomeAssistantRequestClient()
         )
 
 
@@ -80,15 +77,6 @@ class HomeAssistantConnector:
         )
 
 
-    def _new_message_id(self) -> int:
-
-        message_id = self._next_message_id
-
-        self._next_message_id += 1
-
-        return message_id
-
-
     async def start(self) -> None:
 
         self._stop_requested = False
@@ -111,7 +99,12 @@ class HomeAssistantConnector:
 
 
             self.connected = False
-            self._fail_pending_requests()
+            self._request_client.detach()
+            self._request_client.fail_pending_requests(
+                ConnectionError(
+                    "Home Assistant connection was lost"
+                )
+            )
 
             if not self._stop_requested:
 
@@ -183,6 +176,7 @@ class HomeAssistantConnector:
             ping_timeout=20
         ) as websocket:
 
+            self._request_client.attach(websocket)
             self._websocket = websocket
 
             await self._authenticate(
@@ -201,15 +195,6 @@ class HomeAssistantConnector:
                     self._receive_loop()
                 )
             )
-        async def _synchronise_registries(
-            self
-        ) -> None:
-
-            await self._synchronise_floors()
-            await self._synchronise_areas()
-            await self._synchronise_devices()
-            await self._synchronise_entity_registry()
-
 
             await self._initial_state_sync()
 
@@ -332,10 +317,9 @@ class HomeAssistantConnector:
             }
         )
 
-
     async def _send_request(
         self,
-        message: dict[str, Any]
+        payload: dict[str, Any]
     ) -> Any:
 
         if not self.connected:
@@ -343,43 +327,9 @@ class HomeAssistantConnector:
                 "Home Assistant is not connected"
             )
 
-
-        message_id = self._new_message_id()
-
-        outgoing_message = {
-            "id": message_id,
-            **message
-        }
-
-
-        loop = asyncio.get_running_loop()
-
-        future = loop.create_future()
-
-        self._pending_requests[
-            message_id
-        ] = future
-
-
-        try:
-
-            await self._websocket.send(
-                json.dumps(
-                    outgoing_message
-                )
-            )
-
-            return await asyncio.wait_for(
-                future,
-                timeout=30
-            )
-
-        finally:
-
-            self._pending_requests.pop(
-                message_id,
-                None
-            )
+        return await self._request_client.send_request(
+            payload
+        )
 
 
     async def _receive_loop(self) -> None:
@@ -401,7 +351,7 @@ class HomeAssistantConnector:
 
                 if message_type == "result":
 
-                    self._handle_result(
+                    self._request_client.handle_result(
                         message
                     )
 
@@ -438,44 +388,6 @@ class HomeAssistantConnector:
             )
 
             raise
-
-
-    def _handle_result(
-        self,
-        message: dict[str, Any]
-    ) -> None:
-
-        message_id = message.get("id")
-
-        future = self._pending_requests.get(
-            message_id
-        )
-
-        if not future or future.done():
-            return
-
-
-        if message.get("success"):
-
-            future.set_result(
-                message.get("result")
-            )
-
-            return
-
-
-        error = message.get(
-            "error",
-            {}
-        )
-
-        future.set_exception(
-            RuntimeError(
-                "Home Assistant request failed: "
-                f"{error.get('code')} - "
-                f"{error.get('message')}"
-            )
-        )
 
 
     async def _handle_event(
@@ -629,104 +541,4 @@ class HomeAssistantConnector:
                     "entity_id": entity_id
                 }
             }
-        )
-
-
-    def _fail_pending_requests(
-        self
-    ) -> None:
-
-        for future in (
-            self._pending_requests.values()
-        ):
-
-            if not future.done():
-
-                future.set_exception(
-                    ConnectionError(
-                        "Home Assistant connection "
-                        "was lost"
-                    )
-                )
-
-
-        self._pending_requests.clear()
-async def _synchronise_floors(self) -> None:
-
-    floors = await self._send_request(
-        {
-            "type": "config/floor_registry/list"
-        }
-    )
-
-    for floor in floors:
-
-        await event_bus.publish(
-            FloorDiscoveredEvent(
-                floor_id=floor["floor_id"],
-                name=floor["name"],
-                level=floor.get("level")
-            )
-        )
-
-
-async def _synchronise_areas(self) -> None:
-
-    areas = await self._send_request(
-        {
-            "type": "config/area_registry/list"
-        }
-    )
-
-    for area in areas:
-
-        await event_bus.publish(
-            AreaDiscoveredEvent(
-                area_id=area["area_id"],
-                name=area["name"],
-                floor_id=area.get("floor_id")
-            )
-        )
-
-
-async def _synchronise_devices(self) -> None:
-
-    devices = await self._send_request(
-        {
-            "type": "config/device_registry/list"
-        }
-    )
-
-    for device in devices:
-
-        name = (
-            device.get("name_by_user")
-            or device.get("name")
-            or device.get("default_name")
-            or device["id"]
-        )
-
-        await event_bus.publish(
-            DeviceDiscoveredEvent(
-                device_id=device["id"],
-                name=name,
-                area_id=device.get("area_id"),
-                manufacturer=(
-                    device.get("manufacturer")
-                    or device.get(
-                        "default_manufacturer"
-                    )
-                ),
-                model=(
-                    device.get("model")
-                    or device.get("default_model")
-                ),
-                config_entries=device.get(
-                    "config_entries",
-                    []
-                ),
-                via_device_id=device.get(
-                    "via_device_id"
-                )
-            )
         )
