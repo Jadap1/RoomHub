@@ -1,0 +1,11 @@
+{
+  "url": "http://homeassistant.local:8123",
+  "access_token": "replace-with-long-lived-access-token",
+  "reconnect_delay_seconds": 5,
+  "entity_filter": {
+    "mode": "all",
+    "patterns": [],
+    "always_include": [],
+    "always_exclude": []
+  }
+}
