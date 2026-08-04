@@ -1,10 +1,16 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 #include "esp_err.h"
 
 namespace roomhub::config {
+
+inline constexpr std::size_t kMaximumEndpointIdLength = 64;
+inline constexpr std::size_t kMaximumRoomHubUrlLength = 256;
+inline constexpr std::size_t kMaximumWifiSsidLength = 32;
+inline constexpr std::size_t kMaximumWifiPasswordLength = 64;
 
 struct EndpointConfig {
     std::string endpoint_id;

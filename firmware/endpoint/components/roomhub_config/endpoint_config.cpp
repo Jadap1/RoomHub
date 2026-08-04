@@ -17,11 +17,6 @@ constexpr char kRoomHubUrlKey[] = "roomhub_url";
 constexpr char kWifiSsidKey[] = "wifi_ssid";
 constexpr char kWifiPasswordKey[] = "wifi_password";
 
-constexpr std::size_t kMaximumEndpointIdLength = 64;
-constexpr std::size_t kMaximumRoomHubUrlLength = 256;
-constexpr std::size_t kMaximumWifiSsidLength = 32;
-constexpr std::size_t kMaximumWifiPasswordLength = 64;
-
 bool has_prefix(const std::string &value, const char *prefix)
 {
     return value.rfind(prefix, 0) == 0;

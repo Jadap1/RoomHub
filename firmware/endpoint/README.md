@@ -66,9 +66,19 @@ Jarvis tasks start, and audio remains local throughout this radio check.
 Endpoint identity, the RoomHub server URL, and Wi-Fi credentials are stored in
 the ESP-IDF NVS partition. They are never compiled into the firmware or logged.
 The firmware validates all values on load and remains in an unprovisioned state
-until every required value has been stored. The eventual USB provisioning flow
-will use `roomhub::config::EndpointConfigStore`; it is intentionally deferred
-until the physical board is available.
+until every required value has been stored. An unprovisioned endpoint waits for
+one-time setup over its USB Serial/JTAG connection before starting wireless or
+wake-word tasks. With the board connected, run this from an ESP-IDF terminal:
+
+```text
+python tools/provision_endpoint.py --port COM3
+```
+
+The helper prompts locally for the endpoint ID, RoomHub URL, Wi-Fi network name,
+and Wi-Fi password. The password is hidden, is not accepted as a command-line
+argument, and neither the helper nor firmware echoes any supplied value. Valid
+settings are saved through `roomhub::config::EndpointConfigStore`, then the
+endpoint restarts and follows its normal provisioned startup path.
 
 The prototype does not yet enable NVS encryption. Flash encryption and secure
 boot should be enabled together after the first hardware bring-up, because

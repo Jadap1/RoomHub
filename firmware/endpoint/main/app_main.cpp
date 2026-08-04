@@ -5,6 +5,7 @@
 #include "tab5_bringup.hpp"
 #include "tab5_wake_word.hpp"
 #include "tab5_wireless.hpp"
+#include "usb_provisioning.hpp"
 
 namespace {
 constexpr char kTag[] = "roomhub_endpoint";
@@ -72,6 +73,10 @@ extern "C" void app_main(void)
         board_result.microphone_ready ? "ready" : "failed",
         board_result.speaker_ready ? "ready" : "failed"
     );
+
+    if (!endpoint_provisioned && storage_result == ESP_OK) {
+        roomhub::provisioning::run_usb_provisioning();
+    }
 
     const roomhub::board::Tab5WirelessScanResult wireless_result =
         roomhub::board::scan_tab5_wifi();
