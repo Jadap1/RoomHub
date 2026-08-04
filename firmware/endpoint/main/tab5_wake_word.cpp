@@ -8,11 +8,13 @@
 #include "esp_afe_sr_iface.h"
 #include "esp_afe_sr_models.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_wn_iface.h"
 #include "esp_wn_models.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "model_path.h"
+#include "roomhub_transport.hpp"
 #include "tab5_bringup.hpp"
 
 namespace roomhub::board {
@@ -30,6 +32,18 @@ srmodel_list_t *models = nullptr;
 const esp_afe_sr_iface_t *afe_handle = nullptr;
 esp_afe_sr_data_t *afe_data = nullptr;
 std::atomic_bool detector_running{false};
+roomhub::voice::VoiceSession *voice_session = nullptr;
+
+std::uint64_t now_ms()
+{
+    return static_cast<std::uint64_t>(esp_timer_get_time() / 1000);
+}
+
+void restore_private_listening_state()
+{
+    show_tab5_wake_word_listening();
+    ESP_LOGI(kTag, "Listening locally for Jarvis; network audio is disabled");
+}
 
 void microphone_feed_task(void *)
 {
@@ -82,8 +96,7 @@ void microphone_feed_task(void *)
 
 void wake_word_fetch_task(void *)
 {
-    show_tab5_wake_word_listening();
-    ESP_LOGI(kTag, "Listening locally for Jarvis; network audio is disabled");
+    restore_private_listening_state();
 
     while (detector_running) {
         afe_fetch_result_t *result = afe_handle->fetch(afe_data);
@@ -92,7 +105,11 @@ void wake_word_fetch_task(void *)
             detector_running = false;
             break;
         }
-        if (result->wakeup_state == WAKENET_DETECTED) {
+        if (
+            result->wakeup_state == WAKENET_DETECTED
+            && voice_session->state()
+                == roomhub::voice::SessionState::waiting_for_wake_word
+        ) {
             ESP_LOGI(
                 kTag,
                 "Jarvis detected: model=%d word=%d volume=%.1f dB",
@@ -101,6 +118,65 @@ void wake_word_fetch_task(void *)
                 static_cast<double>(result->data_volume)
             );
             show_tab5_wake_word_detected();
+            const auto action = voice_session->on_wake_word_detected(now_ms());
+            if (roomhub::voice::has_action(
+                action,
+                roomhub::voice::SessionAction::begin_audio_stream
+            )) {
+                if (!roomhub::transport::start_voice_audio()) {
+                    voice_session->on_failure();
+                    restore_private_listening_state();
+                } else {
+                    ESP_LOGI(
+                        kTag,
+                        "Command capture started; only post-wake audio is streaming"
+                    );
+                }
+            }
+            // The frame that triggered WakeNet is deliberately never sent.
+            continue;
+        }
+
+        if (voice_session->may_stream_audio()) {
+            const std::uint64_t current_time_ms = now_ms();
+            if (result->vad_state == VAD_SPEECH) {
+                voice_session->on_voice_activity(current_time_ms);
+            }
+            if (!roomhub::transport::send_voice_audio(
+                result->data,
+                static_cast<std::size_t>(result->data_size)
+            )) {
+                roomhub::transport::cancel_voice_audio();
+                voice_session->on_failure();
+                restore_private_listening_state();
+                continue;
+            }
+            const auto action = voice_session->on_tick(current_time_ms);
+            if (roomhub::voice::has_action(
+                action,
+                roomhub::voice::SessionAction::end_audio_stream
+            )) {
+                ESP_LOGI(kTag, "Command capture ended; network audio is disabled");
+                if (!roomhub::transport::end_voice_audio()) {
+                    voice_session->on_failure();
+                    restore_private_listening_state();
+                }
+            }
+        } else if (
+            voice_session->state()
+            == roomhub::voice::SessionState::awaiting_response
+        ) {
+            const auto response = roomhub::transport::voice_response_state();
+            if (response == roomhub::transport::VoiceResponseState::ready) {
+                voice_session->on_response_ready();
+                voice_session->on_playback_finished();
+                restore_private_listening_state();
+            } else if (
+                response == roomhub::transport::VoiceResponseState::failed
+            ) {
+                voice_session->on_failure();
+                restore_private_listening_state();
+            }
         }
     }
 
@@ -122,7 +198,10 @@ bool contains_jarvis_model(const srmodel_list_t *model_list)
 
 }  // namespace
 
-bool start_tab5_wake_word_detector(esp_codec_dev_handle_t microphone)
+bool start_tab5_wake_word_detector(
+    esp_codec_dev_handle_t microphone,
+    roomhub::voice::VoiceSession &session
+)
 {
     if (detector_running) {
         return true;
@@ -183,6 +262,7 @@ bool start_tab5_wake_word_detector(esp_codec_dev_handle_t microphone)
     }
 
     microphone_handle = microphone;
+    voice_session = &session;
     detector_running = true;
     BaseType_t feed_created = xTaskCreate(
         microphone_feed_task,

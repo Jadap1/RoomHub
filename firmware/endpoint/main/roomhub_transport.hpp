@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #include "roomhub/endpoint_config.hpp"
 
 namespace roomhub::transport {
@@ -9,6 +12,17 @@ struct StartResult {
     bool registered = false;
 };
 
+enum class VoiceResponseState {
+    pending,
+    ready,
+    failed,
+};
+
 StartResult start(const roomhub::config::EndpointConfig &config);
+bool start_voice_audio();
+bool send_voice_audio(const std::int16_t *samples, std::size_t byte_count);
+bool end_voice_audio();
+bool cancel_voice_audio();
+VoiceResponseState voice_response_state();
 
 }  // namespace roomhub::transport

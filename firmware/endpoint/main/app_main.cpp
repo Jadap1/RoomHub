@@ -18,7 +18,7 @@ extern "C" void app_main(void)
         .silence_timeout_ms = 800,
         .maximum_capture_ms = 12000,
     };
-    roomhub::voice::VoiceSession session(config);
+    static roomhub::voice::VoiceSession session(config);
 
     ESP_LOGI(kTag, "RoomHub endpoint firmware starting");
     ESP_LOGI(kTag, "Board profile: M5Stack Tab5");
@@ -118,14 +118,12 @@ extern "C" void app_main(void)
     }
 
     const bool wake_word_ready = roomhub::board::start_tab5_wake_word_detector(
-        board_result.microphone
+        board_result.microphone,
+        session
     );
     ESP_LOGI(
         kTag,
         "On-device Jarvis detection: %s",
         wake_word_ready ? "listening" : "failed"
     );
-
-    // Network transport is composed in the next milestone. Until then the
-    // microphone stream remains entirely on-device inside ESP-SR.
 }
