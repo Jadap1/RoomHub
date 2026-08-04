@@ -57,9 +57,10 @@ listening, or has detected the wake word.
 
 The onboard ESP32-C6 is powered through the Tab5 I/O expander and connected to
 the ESP32-P4 over four-bit SDIO. Hardware testing has confirmed the hosted link
-and a credential-free nearby-network scan. Only the number of networks is
-reported; SSID names are not logged. The scan completes before the continuous
-Jarvis tasks start, and audio remains local throughout this radio check.
+and a credential-free nearby-network scan. A provisioned endpoint uses the same
+transport to connect to its stored Wi-Fi network and waits for a network address
+before starting continuous Jarvis tasks. SSIDs and credentials are never logged,
+and audio remains local throughout wireless setup.
 
 ## Persistent configuration
 

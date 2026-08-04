@@ -187,6 +187,16 @@ void show_tab5_wireless_scan(unsigned int network_count)
     bsp_display_unlock();
 }
 
+void show_tab5_wireless_connected()
+{
+    if (wireless_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text(wireless_status, "Wireless: connected through ESP32-C6");
+    lv_obj_set_style_text_color(wireless_status, lv_color_hex(0x2bcbba), 0);
+    bsp_display_unlock();
+}
+
 void show_tab5_wireless_failed()
 {
     if (wireless_status == nullptr || !bsp_display_lock(0)) {

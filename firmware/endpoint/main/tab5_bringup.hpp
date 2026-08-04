@@ -16,6 +16,7 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();
 void show_tab5_wake_word_detected();
 void show_tab5_wireless_scan(unsigned int network_count);
+void show_tab5_wireless_connected();
 void show_tab5_wireless_failed();
 
 }  // namespace roomhub::board

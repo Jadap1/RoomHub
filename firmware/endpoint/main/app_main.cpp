@@ -30,6 +30,7 @@ extern "C" void app_main(void)
     );
 
     bool endpoint_provisioned = false;
+    roomhub::config::EndpointConfig endpoint_config;
     const esp_err_t storage_result = roomhub::config::initialize_storage();
     if (storage_result != ESP_OK) {
         ESP_LOGE(
@@ -42,6 +43,7 @@ extern "C" void app_main(void)
         const roomhub::config::LoadResult config_result = config_store.load();
         if (config_result.status == roomhub::config::LoadStatus::ready) {
             endpoint_provisioned = true;
+            endpoint_config = config_result.config;
             ESP_LOGI(kTag, "Endpoint configuration loaded");
         } else if (
             config_result.status == roomhub::config::LoadStatus::not_provisioned
@@ -78,14 +80,28 @@ extern "C" void app_main(void)
         roomhub::provisioning::run_usb_provisioning();
     }
 
-    const roomhub::board::Tab5WirelessScanResult wireless_result =
-        roomhub::board::scan_tab5_wifi();
-    ESP_LOGI(
-        kTag,
-        "ESP32-C6 wireless scan: radio=%s networks=%u",
-        wireless_result.radio_ready ? "ready" : "failed",
-        wireless_result.network_count
-    );
+    if (endpoint_provisioned) {
+        const roomhub::board::Tab5WirelessConnectionResult wireless_result =
+            roomhub::board::connect_tab5_wifi(
+                endpoint_config.wifi_ssid,
+                endpoint_config.wifi_password
+            );
+        ESP_LOGI(
+            kTag,
+            "ESP32-C6 wireless connection: radio=%s network=%s",
+            wireless_result.radio_ready ? "ready" : "failed",
+            wireless_result.connected ? "connected" : "unavailable"
+        );
+    } else {
+        const roomhub::board::Tab5WirelessScanResult wireless_result =
+            roomhub::board::scan_tab5_wifi();
+        ESP_LOGI(
+            kTag,
+            "ESP32-C6 wireless scan: radio=%s networks=%u",
+            wireless_result.radio_ready ? "ready" : "failed",
+            wireless_result.network_count
+        );
+    }
 
     const bool wake_word_ready = roomhub::board::start_tab5_wake_word_detector(
         board_result.microphone
