@@ -40,9 +40,15 @@ the standard `idf.py build` command.
 
 On other platforms, build with `idf.py build` directly.
 
-The first hardware bring-up must confirm the Tab5 microphone channel order before
-the AFE capture adapter is enabled. The ES7210 supplies two microphones and the
-board's ES8388/ES7210 audio path is owned by the Tab5 BSP.
+The first hardware prototype uses the Tab5 BSP's verified 16 kHz, 16-bit mono
+capture path. That stream feeds a one-microphone ESP-SR AFE pipeline containing
+VADNet and `wn9_jarvis_tts`. The ES7210 enables both physical microphones, but
+multi-microphone enhancement is deferred until it provides a measurable benefit.
+
+On the M5Stack Tab5 board revision 2, hardware testing has confirmed model
+loading, continuous microphone capture, and successful spoken **Jarvis**
+detection. The landscape status screen reports whether the detector is starting,
+listening, or has detected the wake word.
 
 ## Persistent configuration
 
@@ -73,5 +79,6 @@ an erased OTA selection partition, ESP-IDF boots `ota_0` on the initial flash.
 - `components/roomhub_voice/test`: ESP-IDF Unity component tests for the
   portable state machine.
 
-Network audio transport and the concrete Tab5 AFE adapter are deliberately the
-next milestone: the state machine must remain testable without hardware.
+The concrete Tab5 AFE adapter is implemented and keeps all pre-wake audio local.
+Network audio transport is deliberately the next milestone, and the portable
+state machine remains independently testable without hardware.

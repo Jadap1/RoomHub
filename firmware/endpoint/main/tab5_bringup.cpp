@@ -12,6 +12,17 @@ constexpr char kTag[] = "roomhub_tab5";
 
 esp_codec_dev_handle_t microphone = nullptr;
 esp_codec_dev_handle_t speaker = nullptr;
+lv_obj_t *wake_word_status = nullptr;
+
+void set_wake_word_status(const char *text, uint32_t color)
+{
+    if (wake_word_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text(wake_word_status, text);
+    lv_obj_set_style_text_color(wake_word_status, lv_color_hex(color), 0);
+    bsp_display_unlock();
+}
 
 void on_touch(lv_event_t *event)
 {
@@ -71,7 +82,12 @@ void create_status_screen(
         endpoint_provisioned ? "ready" : "provisioning required"
     );
     lv_obj_set_style_text_line_space(status, 12, 0);
-    lv_obj_set_style_pad_bottom(status, 32, 0);
+    lv_obj_set_style_pad_bottom(status, 18, 0);
+
+    wake_word_status = lv_label_create(panel);
+    lv_label_set_text(wake_word_status, "Wake word: starting");
+    lv_obj_set_style_text_color(wake_word_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_set_style_pad_bottom(wake_word_status, 18, 0);
 
     lv_obj_t *button = lv_button_create(panel);
     lv_obj_set_size(button, 360, 78);
@@ -94,6 +110,7 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
 
     microphone = bsp_audio_codec_microphone_init();
     result.microphone_ready = microphone != nullptr;
+    result.microphone = microphone;
     speaker = bsp_audio_codec_speaker_init();
     result.speaker_ready = speaker != nullptr;
     if (result.speaker_ready) {
@@ -138,6 +155,16 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
         );
     }
     return result;
+}
+
+void show_tab5_wake_word_listening()
+{
+    set_wake_word_status("Wake word: listening for Jarvis", 0x2bcbba);
+}
+
+void show_tab5_wake_word_detected()
+{
+    set_wake_word_status("Wake word: Jarvis detected", 0x78e08f);
 }
 
 }  // namespace roomhub::board

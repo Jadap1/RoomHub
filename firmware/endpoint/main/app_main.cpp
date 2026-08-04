@@ -3,6 +3,7 @@
 #include "roomhub/endpoint_config.hpp"
 #include "roomhub/voice_session.hpp"
 #include "tab5_bringup.hpp"
+#include "tab5_wake_word.hpp"
 
 namespace {
 constexpr char kTag[] = "roomhub_endpoint";
@@ -65,6 +66,15 @@ extern "C" void app_main(void)
         board_result.speaker_ready ? "ready" : "failed"
     );
 
-    // Hardware capture and transport are composed in the next milestone.
-    // Until then this application cannot open a network audio session.
+    const bool wake_word_ready = roomhub::board::start_tab5_wake_word_detector(
+        board_result.microphone
+    );
+    ESP_LOGI(
+        kTag,
+        "On-device Jarvis detection: %s",
+        wake_word_ready ? "listening" : "failed"
+    );
+
+    // Network transport is composed in the next milestone. Until then the
+    // microphone stream remains entirely on-device inside ESP-SR.
 }
