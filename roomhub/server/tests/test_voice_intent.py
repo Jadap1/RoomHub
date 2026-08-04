@@ -41,6 +41,11 @@ class VoiceIntentTests(unittest.IsolatedAsyncioTestCase):
                 name="Temperature",
                 area_id="kitchen",
             ),
+            "light.dininglights": Entity(
+                entity_id="light.dininglights",
+                entity_type="light",
+                name="DiningLights",
+            ),
         })
         self.areas = FakeRegistry({
             "kitchen": Area(
@@ -101,6 +106,18 @@ class VoiceIntentTests(unittest.IsolatedAsyncioTestCase):
             "light.study_ceiling",
         )
         self.assertEqual(self.published[0].command, "turn_off")
+
+    async def test_spoken_words_match_camel_case_friendly_name(self):
+        response = await self.service.handle_transcript(
+            "turn on dining lights",
+        )
+
+        self.assertEqual(response["type"], "voice.intent.accepted")
+        self.assertEqual(
+            response["payload"]["entity_id"],
+            "light.dininglights",
+        )
+        self.assertEqual(self.published[0].command, "turn_on")
 
     async def test_ambiguous_name_is_rejected(self):
         response = await self.service.handle_transcript(

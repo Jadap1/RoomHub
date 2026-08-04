@@ -42,6 +42,7 @@ _SUPPORTED_DOMAINS = {
 
 
 def _normalise(value: str) -> str:
+    value = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", value)
     value = value.casefold().strip()
     value = re.sub(r"[._-]+", " ", value)
     value = re.sub(r"[^\w\s]+", " ", value)
