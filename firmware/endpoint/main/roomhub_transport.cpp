@@ -229,6 +229,16 @@ StartResult start(const roomhub::config::EndpointConfig &config)
         ESP_LOGE(kTag, "Could not start the RoomHub control connection");
         return result;
     }
+    if (xTaskCreate(
+        heartbeat_task,
+        "roomhub_heartbeat",
+        4096,
+        &context,
+        4,
+        nullptr
+    ) != pdPASS) {
+        ESP_LOGW(kTag, "Could not start RoomHub connection maintenance");
+    }
 
     EventBits_t state = xEventGroupWaitBits(
         context.events,
@@ -261,16 +271,6 @@ StartResult start(const roomhub::config::EndpointConfig &config)
         return result;
     }
 
-    if (xTaskCreate(
-        heartbeat_task,
-        "roomhub_heartbeat",
-        4096,
-        &context,
-        4,
-        nullptr
-    ) != pdPASS) {
-        ESP_LOGW(kTag, "Could not start the RoomHub heartbeat task");
-    }
     return result;
 }
 
