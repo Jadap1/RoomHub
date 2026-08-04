@@ -62,6 +62,12 @@ transport to connect to its stored Wi-Fi network and waits for a network address
 before starting continuous Jarvis tasks. SSIDs and credentials are never logged,
 and audio remains local throughout wireless setup.
 
+After Wi-Fi is available, the endpoint opens the RoomHub `/ws` control service,
+registers its stable endpoint ID and hardware capabilities, and sends a status
+heartbeat every ten seconds. The client reconnects automatically after an
+interruption and registers again. This control connection does not make
+microphone audio eligible for transport.
+
 ## Persistent configuration
 
 Endpoint identity, the RoomHub server URL, and Wi-Fi credentials are stored in

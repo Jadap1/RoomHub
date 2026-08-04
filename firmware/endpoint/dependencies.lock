@@ -331,6 +331,16 @@ dependencies:
     - esp32c6
     - esp32c61
     version: 2.0.1
+  espressif/esp_websocket_client:
+    component_hash: f77326f0e1c38da4e9c97e17c5d649b0dd13027f2645e720e48db269638fd622
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.4.0
   espressif/esp_wifi_remote:
     component_hash: f772731a8cc7361a3eb416eac94ac46cf85369cb996c5a5fc9245a07f241fee2
     dependencies:
@@ -493,11 +503,12 @@ dependencies:
 direct_dependencies:
 - espressif/esp-sr
 - espressif/esp_hosted
+- espressif/esp_websocket_client
 - espressif/esp_wifi_remote
 - espressif/m5stack_tab5
 - espressif/usb
 - idf
 - lvgl/lvgl
-manifest_hash: e696298cca80b2d0a7e20cb9743e50b0836c58252a031d665b4aea44ca800bc9
+manifest_hash: a5cd2af75f24e767d2ce21cd54efef91ab3a5781521b9ec0ed0680fe70bbee97
 target: esp32p4
 version: 2.0.0

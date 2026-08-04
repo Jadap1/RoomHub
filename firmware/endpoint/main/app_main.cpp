@@ -2,6 +2,7 @@
 
 #include "roomhub/endpoint_config.hpp"
 #include "roomhub/voice_session.hpp"
+#include "roomhub_transport.hpp"
 #include "tab5_bringup.hpp"
 #include "tab5_wake_word.hpp"
 #include "tab5_wireless.hpp"
@@ -80,6 +81,7 @@ extern "C" void app_main(void)
         roomhub::provisioning::run_usb_provisioning();
     }
 
+    bool wireless_connected = false;
     if (endpoint_provisioned) {
         const roomhub::board::Tab5WirelessConnectionResult wireless_result =
             roomhub::board::connect_tab5_wifi(
@@ -92,6 +94,7 @@ extern "C" void app_main(void)
             wireless_result.radio_ready ? "ready" : "failed",
             wireless_result.connected ? "connected" : "unavailable"
         );
+        wireless_connected = wireless_result.connected;
     } else {
         const roomhub::board::Tab5WirelessScanResult wireless_result =
             roomhub::board::scan_tab5_wifi();
@@ -100,6 +103,17 @@ extern "C" void app_main(void)
             "ESP32-C6 wireless scan: radio=%s networks=%u",
             wireless_result.radio_ready ? "ready" : "failed",
             wireless_result.network_count
+        );
+    }
+
+    if (wireless_connected) {
+        const roomhub::transport::StartResult transport_result =
+            roomhub::transport::start(endpoint_config);
+        ESP_LOGI(
+            kTag,
+            "RoomHub control connection: service=%s registration=%s",
+            transport_result.connected ? "connected" : "unavailable",
+            transport_result.registered ? "accepted" : "pending"
         );
     }
 
