@@ -87,3 +87,16 @@ The portable ESP32-P4 endpoint firmware starts under
 [`firmware/endpoint`](firmware/endpoint/). Its first board profile is the
 M5Stack Tab5, but wake-word and voice-session behaviour is kept independent
 from the board support package.
+## Home Assistant installation
+
+This repository is a Home Assistant app repository. In Home Assistant, open
+**Settings > Apps > App store**, add this repository URL, then install RoomHub:
+
+```text
+https://github.com/Jadap1/RoomHub
+```
+
+Set the Home Assistant public URL to a LAN address that endpoints can reach,
+then start the app. RoomHub publishes its endpoint service on TCP port `8000`.
+The app receives a scoped Supervisor token automatically; no long-lived Home
+Assistant access token is required.

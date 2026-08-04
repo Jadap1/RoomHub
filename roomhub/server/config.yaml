@@ -1,0 +1,24 @@
+name: RoomHub
+version: "0.1.0"
+slug: roomhub
+description: Local RoomHub endpoint, Home Assistant, and Assist bridge
+url: https://github.com/Jadap1/RoomHub
+stage: experimental
+startup: application
+boot: auto
+init: false
+arch:
+  - aarch64
+  - amd64
+homeassistant_api: true
+ports:
+  8000/tcp: 8000
+ports_description:
+  8000/tcp: RoomHub endpoint control and audio service
+webui: http://[HOST]:[PORT:8000]/
+options:
+  assist_pipeline_name: RoomHub Local
+  homeassistant_public_url: http://homeassistant.local:8123
+schema:
+  assist_pipeline_name: str
+  homeassistant_public_url: url
