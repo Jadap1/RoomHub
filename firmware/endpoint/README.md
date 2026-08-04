@@ -22,6 +22,11 @@ pipeline from STT to STT and from TTS to TTS as separate operations.
 - Target: `esp32p4`
 - ESP-SR 2.4.x
 - Espressif M5Stack Tab5 BSP 1.2.x
+- ESP-Hosted 1.4.0 and ESP Wi-Fi Remote 0.8.5
+
+The hosted Wi-Fi versions are intentionally pinned to the versions used with
+M5Stack's factory ESP32-C6 Wi-Fi SDIO firmware. Do not upgrade either side in
+isolation; the P4 host and C6 coprocessor firmware must remain compatible.
 
 After installing and activating ESP-IDF, select the target once:
 
@@ -49,6 +54,12 @@ On the M5Stack Tab5 board revision 2, hardware testing has confirmed model
 loading, continuous microphone capture, and successful spoken **Jarvis**
 detection. The landscape status screen reports whether the detector is starting,
 listening, or has detected the wake word.
+
+The onboard ESP32-C6 is powered through the Tab5 I/O expander and connected to
+the ESP32-P4 over four-bit SDIO. Hardware testing has confirmed the hosted link
+and a credential-free nearby-network scan. Only the number of networks is
+reported; SSID names are not logged. The scan completes before the continuous
+Jarvis tasks start, and audio remains local throughout this radio check.
 
 ## Persistent configuration
 
