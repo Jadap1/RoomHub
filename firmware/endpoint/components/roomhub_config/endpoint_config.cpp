@@ -16,6 +16,7 @@ constexpr char kEndpointIdKey[] = "endpoint_id";
 constexpr char kRoomHubUrlKey[] = "roomhub_url";
 constexpr char kWifiSsidKey[] = "wifi_ssid";
 constexpr char kWifiPasswordKey[] = "wifi_password";
+constexpr char kAreaIdKey[] = "area_id";
 
 bool has_prefix(const std::string &value, const char *prefix)
 {
@@ -190,6 +191,39 @@ esp_err_t EndpointConfigStore::clear() const
         result = nvs_commit(handle);
     }
     nvs_close(handle);
+    return result;
+}
+
+std::string EndpointConfigStore::load_area_id() const
+{
+    nvs_handle_t handle = 0;
+    if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) {
+        return {};
+    }
+    std::string area_id;
+    const esp_err_t result = read_string(
+        handle, kAreaIdKey, kMaximumAreaIdLength, area_id
+    );
+    nvs_close(handle);
+    return result == ESP_OK ? area_id : std::string{};
+}
+
+esp_err_t EndpointConfigStore::save_area_id(const std::string &area_id) const
+{
+    if (area_id.empty() || area_id.size() > kMaximumAreaIdLength) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    nvs_handle_t handle = 0;
+    esp_err_t result = nvs_open(kNamespace, NVS_READWRITE, &handle);
+    if (result == ESP_OK) {
+        result = nvs_set_str(handle, kAreaIdKey, area_id.c_str());
+    }
+    if (result == ESP_OK) {
+        result = nvs_commit(handle);
+    }
+    if (handle != 0) {
+        nvs_close(handle);
+    }
     return result;
 }
 

@@ -1,5 +1,8 @@
 #include "tab5_bringup.hpp"
 
+#include <string>
+#include <vector>
+
 #include "bsp/m5stack_tab5.h"
 #include "esp_codec_dev.h"
 #include "esp_log.h"
@@ -15,6 +18,10 @@ esp_codec_dev_handle_t speaker = nullptr;
 lv_obj_t *wake_word_status = nullptr;
 lv_obj_t *wireless_status = nullptr;
 lv_obj_t *roomhub_status = nullptr;
+lv_obj_t *dashboard_area = nullptr;
+lv_obj_t *dashboard_grid = nullptr;
+std::vector<std::string> dashboard_entity_ids;
+DashboardAction dashboard_action = nullptr;
 
 void set_wake_word_status(const char *text, uint32_t color)
 {
@@ -26,11 +33,13 @@ void set_wake_word_status(const char *text, uint32_t color)
     bsp_display_unlock();
 }
 
-void on_touch(lv_event_t *event)
+void on_dashboard_touch(lv_event_t *event)
 {
-    auto *label = static_cast<lv_obj_t *>(lv_event_get_user_data(event));
-    lv_label_set_text(label, "Touch detected");
-    ESP_LOGI(kTag, "Touch input confirmed");
+    const char *entity_id = static_cast<const char *>(lv_event_get_user_data(event));
+    if (dashboard_action != nullptr && entity_id != nullptr) {
+        dashboard_action(entity_id);
+        ESP_LOGI(kTag, "Dashboard action requested for %s", entity_id);
+    }
 }
 
 void create_status_screen(
@@ -65,26 +74,22 @@ void create_status_screen(
     lv_obj_set_style_pad_bottom(title, 18, 0);
 
     lv_obj_t *subtitle = lv_label_create(panel);
-    lv_label_set_text(subtitle, "M5Stack Tab5 hardware bring-up");
-    lv_obj_set_style_pad_bottom(subtitle, 28, 0);
+    dashboard_area = subtitle;
+    lv_label_set_text(dashboard_area, "Unassigned");
+    lv_obj_set_style_pad_bottom(dashboard_area, 12, 0);
 
     lv_obj_t *status = lv_label_create(panel);
     lv_label_set_text_fmt(
         status,
-        "Firmware boot: ready\n"
-        "Display: ready\n"
-        "Touch controller: %s\n"
-        "Microphone codec: %s\n"
-        "Speaker codec: %s\n"
-        "Configuration: %s\n"
-        "Network audio: disabled",
+        "Hardware: display ready, touch %s, microphone %s, speaker %s\n"
+        "Configuration: %s",
         result.touch_ready ? "ready" : "failed",
         result.microphone_ready ? "ready" : "failed",
         result.speaker_ready ? "ready" : "failed",
         endpoint_provisioned ? "ready" : "provisioning required"
     );
-    lv_obj_set_style_text_line_space(status, 12, 0);
-    lv_obj_set_style_pad_bottom(status, 18, 0);
+    lv_obj_set_style_text_line_space(status, 6, 0);
+    lv_obj_set_style_pad_bottom(status, 10, 0);
 
     wireless_status = lv_label_create(panel);
     lv_label_set_text(wireless_status, "Wireless: checking ESP32-C6");
@@ -99,19 +104,21 @@ void create_status_screen(
     wake_word_status = lv_label_create(panel);
     lv_label_set_text(wake_word_status, "Wake word: starting");
     lv_obj_set_style_text_color(wake_word_status, lv_color_hex(0xf6b93b), 0);
-    lv_obj_set_style_pad_bottom(wake_word_status, 18, 0);
+    lv_obj_set_style_pad_bottom(wake_word_status, 10, 0);
 
-    lv_obj_t *button = lv_button_create(panel);
-    lv_obj_set_size(button, 360, 78);
-    lv_obj_set_style_bg_color(button, lv_color_hex(0x2bcbba), 0);
-    lv_obj_t *button_label = lv_label_create(button);
-    lv_label_set_text(button_label, "Touch to test");
-    lv_obj_center(button_label);
-    if (result.touch_ready) {
-        lv_obj_add_event_cb(button, on_touch, LV_EVENT_CLICKED, button_label);
-    } else {
-        lv_obj_add_state(button, LV_STATE_DISABLED);
-    }
+    dashboard_grid = lv_obj_create(panel);
+    lv_obj_set_width(dashboard_grid, lv_pct(100));
+    lv_obj_set_flex_grow(dashboard_grid, 1);
+    lv_obj_set_style_bg_opa(dashboard_grid, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(dashboard_grid, 0, 0);
+    lv_obj_set_style_pad_all(dashboard_grid, 4, 0);
+    lv_obj_set_flex_flow(dashboard_grid, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(
+        dashboard_grid,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_START,
+        LV_FLEX_ALIGN_START
+    );
 }
 
 }  // namespace
@@ -289,6 +296,52 @@ void show_tab5_firmware_restarting()
     }
     lv_label_set_text(roomhub_status, "Firmware: verified; restarting");
     lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0x2bcbba), 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_dashboard(
+    const std::string &area_name,
+    const std::vector<DashboardEntity> &entities,
+    DashboardAction action
+)
+{
+    if (dashboard_area == nullptr || dashboard_grid == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    dashboard_action = action;
+    dashboard_entity_ids.clear();
+    dashboard_entity_ids.reserve(entities.size());
+    for (const auto &entity : entities) {
+        dashboard_entity_ids.push_back(entity.entity_id);
+    }
+    lv_label_set_text(dashboard_area, area_name.c_str());
+    lv_obj_clean(dashboard_grid);
+    if (entities.empty()) {
+        lv_obj_t *empty = lv_label_create(dashboard_grid);
+        lv_label_set_text(empty, "No supported entities in this area");
+    }
+    for (std::size_t index = 0; index < entities.size() && index < 6; ++index) {
+        const auto &entity = entities[index];
+        lv_obj_t *button = lv_button_create(dashboard_grid);
+        lv_obj_set_size(button, 300, 78);
+        lv_obj_set_style_bg_color(
+            button,
+            lv_color_hex(entity.state == "on" ? 0x2bcbba : 0x34495e),
+            0
+        );
+        if (!entity.available) {
+            lv_obj_add_state(button, LV_STATE_DISABLED);
+        }
+        lv_obj_t *label = lv_label_create(button);
+        lv_label_set_text_fmt(label, "%s\n%s", entity.name.c_str(), entity.state.c_str());
+        lv_obj_center(label);
+        lv_obj_add_event_cb(
+            button,
+            on_dashboard_touch,
+            LV_EVENT_CLICKED,
+            const_cast<char *>(dashboard_entity_ids[index].c_str())
+        );
+    }
     bsp_display_unlock();
 }
 

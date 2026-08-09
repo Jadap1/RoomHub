@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "cJSON.h"
 #include "endpoint_ota.hpp"
@@ -62,6 +63,70 @@ bool send_text(
     const std::string &message
 );
 bool voice_transport_ready();
+cJSON *create_message(const char *type, const std::string &endpoint_id);
+std::string print_message(cJSON *message);
+
+void send_dashboard_toggle(const char *entity_id)
+{
+    if (entity_id == nullptr || context.client == nullptr) {
+        return;
+    }
+    cJSON *message = create_message("light.toggle", context.endpoint_id);
+    if (message == nullptr) {
+        return;
+    }
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(payload, "entity_id", entity_id);
+    if (!send_text(context.client, print_message(message))) {
+        ESP_LOGW(kTag, "Could not send dashboard action for %s", entity_id);
+    }
+}
+
+void show_dashboard_payload(const cJSON *payload)
+{
+    if (!cJSON_IsObject(payload)) {
+        return;
+    }
+    const cJSON *area_name = cJSON_GetObjectItemCaseSensitive(payload, "area_name");
+    const cJSON *area_id = cJSON_GetObjectItemCaseSensitive(payload, "area_id");
+    const cJSON *items = cJSON_GetObjectItemCaseSensitive(payload, "entities");
+    if (!cJSON_IsString(area_name) || !cJSON_IsArray(items)) {
+        return;
+    }
+    if (cJSON_IsString(area_id)) {
+        const esp_err_t saved = roomhub::config::EndpointConfigStore().save_area_id(
+            area_id->valuestring
+        );
+        if (saved != ESP_OK) {
+            ESP_LOGW(kTag, "Could not persist dashboard area: %s", esp_err_to_name(saved));
+        }
+    }
+    std::vector<roomhub::board::DashboardEntity> entities;
+    const cJSON *item = nullptr;
+    cJSON_ArrayForEach(item, items) {
+        const cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(item, "entity_id");
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
+        const cJSON *state = cJSON_GetObjectItemCaseSensitive(item, "state");
+        const cJSON *state_value = cJSON_IsObject(state)
+            ? cJSON_GetObjectItemCaseSensitive(state, "state") : nullptr;
+        const cJSON *available = cJSON_IsObject(state)
+            ? cJSON_GetObjectItemCaseSensitive(state, "available") : nullptr;
+        if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)) {
+            continue;
+        }
+        entities.push_back({
+            .entity_id = entity_id->valuestring,
+            .name = name->valuestring,
+            .state = cJSON_IsString(state_value) ? state_value->valuestring : "unknown",
+            .available = available == nullptr || cJSON_IsTrue(available),
+        });
+    }
+    roomhub::board::show_tab5_dashboard(
+        area_name->valuestring,
+        entities,
+        send_dashboard_toggle
+    );
+}
 
 std::string websocket_url(const std::string &roomhub_url)
 {
@@ -105,7 +170,10 @@ std::string print_message(cJSON *message)
     return result;
 }
 
-std::string registration_message(const std::string &endpoint_id)
+std::string registration_message(
+    const std::string &endpoint_id,
+    const std::string &area_id
+)
 {
     cJSON *message = create_message("endpoint.register", endpoint_id);
     if (message == nullptr) {
@@ -115,6 +183,9 @@ std::string registration_message(const std::string &endpoint_id)
     cJSON_AddStringToObject(payload, "device_id", endpoint_id.c_str());
     cJSON_AddStringToObject(payload, "device_name", "RoomHub Tab5");
     cJSON_AddStringToObject(payload, "room", "Unassigned");
+    if (!area_id.empty()) {
+        cJSON_AddStringToObject(payload, "area_id", area_id.c_str());
+    }
     cJSON_AddStringToObject(
         payload,
         "firmware_version",
@@ -262,6 +333,14 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             roomhub::board::show_tab5_roomhub_registered();
             roomhub::ota::confirm_running_image();
             ESP_LOGI(kTag, "Endpoint registration accepted by RoomHub");
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            show_dashboard_payload(
+                cJSON_IsObject(payload)
+                    ? cJSON_GetObjectItemCaseSensitive(payload, "dashboard")
+                    : nullptr
+            );
+        } else if (message_type == "room.dashboard") {
+            show_dashboard_payload(cJSON_GetObjectItemCaseSensitive(message, "payload"));
         } else if (message_type == "firmware.update") {
             cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             cJSON *version = cJSON_GetObjectItemCaseSensitive(payload, "version");
@@ -604,7 +683,10 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     context.endpoint_id = config.endpoint_id;
     context.roomhub_url = config.roomhub_url;
     roomhub::board::set_tab5_audio_event_callback(send_audio_playback_event);
-    context.registration = registration_message(context.endpoint_id);
+    context.registration = registration_message(
+        context.endpoint_id,
+        roomhub::config::EndpointConfigStore().load_area_id()
+    );
     if (
         context.events == nullptr
         || context.voice_response_mutex == nullptr

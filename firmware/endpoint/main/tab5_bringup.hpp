@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "esp_codec_dev.h"
 
 namespace roomhub::board {
@@ -12,6 +15,15 @@ struct Tab5BringUpResult {
     esp_codec_dev_handle_t microphone = nullptr;
     esp_codec_dev_handle_t speaker = nullptr;
 };
+
+struct DashboardEntity {
+    std::string entity_id;
+    std::string name;
+    std::string state;
+    bool available = true;
+};
+
+using DashboardAction = void (*)(const char *entity_id);
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();
@@ -26,5 +38,10 @@ void show_tab5_roomhub_registered();
 void show_tab5_firmware_updating(unsigned int percent);
 void show_tab5_firmware_failed();
 void show_tab5_firmware_restarting();
+void show_tab5_dashboard(
+    const std::string &area_name,
+    const std::vector<DashboardEntity> &entities,
+    DashboardAction action
+);
 
 }  // namespace roomhub::board

@@ -112,7 +112,7 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
                 area_id="kitchen",
             )
 
-    def test_endpoint_area_assignment_persists(self):
+    async def test_endpoint_area_assignment_persists(self):
         with tempfile.TemporaryDirectory() as directory:
             database_path = Path(directory) / "roomhub.db"
             with patch.object(database, "DATABASE", database_path):
@@ -128,10 +128,21 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
                     connected=True,
                 ))
                 service = EndpointAssignmentService()
-                result = service.assign("panel", "kitchen")
+                result = await service.assign("panel", "kitchen")
                 self.assertEqual(result["status"], "assigned")
                 self.assertEqual(service.get_area_id("panel"), "kitchen")
                 self.assertEqual(registry.get("panel").room, "Kitchen")
+
+                recovered = Endpoint(
+                    device_id="recovered-panel",
+                    device_name="Recovered",
+                    room="Unassigned",
+                    area_id="kitchen",
+                    capabilities=["display"],
+                )
+                service.apply(recovered)
+                self.assertEqual(service.get_area_id("recovered-panel"), "kitchen")
+                self.assertEqual(recovered.room, "Kitchen")
 
 
 if __name__ == "__main__":

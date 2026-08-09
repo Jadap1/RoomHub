@@ -32,6 +32,10 @@ async def dispatch(message):
 
         return await handle_audio_status(message)
 
+    elif message_type in command_router.commands:
+
+        return await command_router.execute(message)
+
 
     return {
         "version": "1.0",

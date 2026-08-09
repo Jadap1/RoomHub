@@ -3,6 +3,7 @@ from contextlib import closing
 from ..core.area_registry import area_registry
 from ..core.database import get_connection
 from ..core.registry import registry
+from .room_dashboard_service import room_dashboard_service
 
 
 class EndpointAssignmentService:
@@ -17,12 +18,20 @@ class EndpointAssignmentService:
     def apply(self, endpoint) -> None:
         area_id = self.get_area_id(endpoint.device_id)
         if area_id is None:
-            return
+            reported_area_id = endpoint.area_id
+            if reported_area_id is None or area_registry.get(reported_area_id) is None:
+                return
+            area_id = reported_area_id
+            with closing(get_connection()) as connection, connection:
+                connection.execute(
+                    "INSERT INTO endpoint_assignments (endpoint_id, area_id) VALUES (?, ?)",
+                    (endpoint.device_id, area_id),
+                )
         endpoint.area_id = area_id
         area = area_registry.get(area_id)
         endpoint.room = area.name if area is not None else area_id
 
-    def assign(self, endpoint_id: str, area_id: str) -> dict:
+    async def assign(self, endpoint_id: str, area_id: str) -> dict:
         endpoint = registry.get(endpoint_id)
         if endpoint is None:
             return {"status": "not_found", "endpoint_id": endpoint_id}
@@ -40,6 +49,7 @@ class EndpointAssignmentService:
             )
         endpoint.area_id = area_id
         endpoint.room = area.name
+        await room_dashboard_service.send(endpoint_id)
         return {
             "status": "assigned",
             "endpoint_id": endpoint_id,

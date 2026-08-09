@@ -145,7 +145,7 @@ def create_app(
 
     @app.put("/endpoints/{endpoint_id}/area/{area_id}")
     async def assign_endpoint_area(endpoint_id: str, area_id: str):
-        return endpoint_assignment_service.assign(endpoint_id, area_id)
+        return await endpoint_assignment_service.assign(endpoint_id, area_id)
 
     @app.put("/firmware/endpoint")
     async def publish_endpoint_firmware(

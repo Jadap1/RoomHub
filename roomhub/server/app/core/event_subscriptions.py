@@ -7,6 +7,7 @@ from ..events.entity_events import (
     EntityStateChangedEvent,
 )
 from ..integrations.registry import homeassistant
+from ..services.room_dashboard_service import room_dashboard_service
 
 from .area_registry import area_registry
 from .device_registry import device_registry
@@ -38,6 +39,10 @@ def register_event_subscriptions(
     event_bus.subscribe(
         EntityStateChangedEvent,
         entity_registry.handle_state_changed
+    )
+    event_bus.subscribe(
+        EntityStateChangedEvent,
+        room_dashboard_service.handle_state_changed
     )
     event_bus.subscribe(
         EntityRemovedEvent,

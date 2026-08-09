@@ -11,6 +11,7 @@ inline constexpr std::size_t kMaximumEndpointIdLength = 64;
 inline constexpr std::size_t kMaximumRoomHubUrlLength = 256;
 inline constexpr std::size_t kMaximumWifiSsidLength = 32;
 inline constexpr std::size_t kMaximumWifiPasswordLength = 64;
+inline constexpr std::size_t kMaximumAreaIdLength = 64;
 
 struct EndpointConfig {
     std::string endpoint_id;
@@ -40,6 +41,8 @@ public:
     LoadResult load() const;
     esp_err_t save(const EndpointConfig &config) const;
     esp_err_t clear() const;
+    std::string load_area_id() const;
+    esp_err_t save_area_id(const std::string &area_id) const;
 };
 
 }  // namespace roomhub::config
