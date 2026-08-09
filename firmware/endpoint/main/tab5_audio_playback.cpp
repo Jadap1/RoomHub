@@ -87,7 +87,8 @@ bool render_pcm(
 PlaybackResult play_tab5_mp3_url(
     esp_codec_dev_handle_t speaker,
     const std::string &url,
-    const std::atomic_bool *cancel_requested
+    const std::atomic_bool *cancel_requested,
+    int output_volume
 )
 {
     if (speaker == nullptr || !valid_audio_url(url)) {
@@ -225,7 +226,10 @@ PlaybackResult play_tab5_mp3_url(
                                   == ESP_OK
                               && esp_codec_dev_open(speaker, &format)
                                   == ESP_CODEC_DEV_OK
-                              && esp_codec_dev_set_out_vol(speaker, 65)
+                              && esp_codec_dev_set_out_vol(
+                                  speaker,
+                                  std::clamp(output_volume, 0, 100)
+                              )
                                   == ESP_CODEC_DEV_OK;
                     speaker_open = success;
                     ESP_LOGI(

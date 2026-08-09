@@ -19,6 +19,7 @@ struct Record {
     std::string request_id;
     std::string url;
     std::string mime_type;
+    roomhub::audio::Priority priority = roomhub::audio::Priority::notification;
     bool retain_final_state = false;
     AudioPlaybackState state = AudioPlaybackState::unknown;
 };
@@ -89,7 +90,9 @@ void audio_service_task(void *)
         const PlaybackResult result = play_tab5_mp3_url(
             speaker_handle,
             request.url,
-            &cancel_requested
+            &cancel_requested,
+            request.priority == roomhub::audio::Priority::notification
+                ? 35 : 65
         );
         if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
             if (auto *record = find_record(request.token)) {
@@ -185,6 +188,7 @@ std::uint32_t submit_tab5_audio(
         .request_id = request_id,
         .url = url,
         .mime_type = mime_type,
+        .priority = priority,
         .retain_final_state = retain_final_state,
         .state = decision.action == roomhub::audio::SubmitAction::queued
             ? AudioPlaybackState::queued : AudioPlaybackState::playing,
