@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "firmware.update",
+  "source": "roomhub-core",
+  "target": "tab5-01",
+  "payload": {
+    "version": "0.2.1",
+    "size": 2517120,
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "path": "/firmware/endpoint/image"
+  }
+}

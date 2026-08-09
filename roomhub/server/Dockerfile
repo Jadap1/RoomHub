@@ -12,6 +12,7 @@ WORKDIR /app
 
 ENV ROOMHUB_RUNTIME_MODE=homeassistant_app \
     ROOMHUB_DATABASE_PATH=/data/roomhub.db \
+    ROOMHUB_FIRMWARE_PATH=/data/firmware \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 

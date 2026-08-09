@@ -52,6 +52,9 @@ The current read-only discovery endpoints are:
 - `GET /devices`
 - `GET /devices/{device_id}`
 - `PUT /endpoints/{endpoint_id}/area/{area_id}`
+- `PUT /firmware/endpoint` with `X-Firmware-Version` and a raw ESP image body
+- `GET /firmware/endpoint/manifest`
+- `POST /firmware/endpoint/deploy/{endpoint_id}`
 - `POST /notifications`
 - `GET /notifications/{delivery_id}`
 

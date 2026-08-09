@@ -5,6 +5,8 @@
 #include <string>
 
 #include "cJSON.h"
+#include "endpoint_ota.hpp"
+#include "esp_app_desc.h"
 #include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -37,6 +39,7 @@ struct TransportContext {
     EventGroupHandle_t events = nullptr;
     esp_websocket_client_handle_t client = nullptr;
     std::string endpoint_id;
+    std::string roomhub_url;
     std::string registration;
     std::atomic_bool network_audio_allowed{false};
     std::atomic_bool voice_end_pending{false};
@@ -112,6 +115,11 @@ std::string registration_message(const std::string &endpoint_id)
     cJSON_AddStringToObject(payload, "device_id", endpoint_id.c_str());
     cJSON_AddStringToObject(payload, "device_name", "RoomHub Tab5");
     cJSON_AddStringToObject(payload, "room", "Unassigned");
+    cJSON_AddStringToObject(
+        payload,
+        "firmware_version",
+        esp_app_get_description()->version
+    );
     cJSON *capabilities = cJSON_AddArrayToObject(payload, "capabilities");
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("display"));
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("speaker"));
@@ -252,7 +260,38 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
         if (message_type == "endpoint.registered") {
             xEventGroupSetBits(transport.events, kRegistered);
             roomhub::board::show_tab5_roomhub_registered();
+            roomhub::ota::confirm_running_image();
             ESP_LOGI(kTag, "Endpoint registration accepted by RoomHub");
+        } else if (message_type == "firmware.update") {
+            cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            cJSON *version = cJSON_GetObjectItemCaseSensitive(payload, "version");
+            cJSON *path = cJSON_GetObjectItemCaseSensitive(payload, "path");
+            cJSON *sha256 = cJSON_GetObjectItemCaseSensitive(payload, "sha256");
+            cJSON *size = cJSON_GetObjectItemCaseSensitive(payload, "size");
+            if (cJSON_IsString(version) && cJSON_IsString(path)
+                && cJSON_IsString(sha256) && cJSON_IsNumber(size)
+                && size->valuedouble > 0) {
+                std::string base = transport.roomhub_url;
+                while (!base.empty() && base.back() == '/') base.pop_back();
+                const std::string update_path = path->valuestring;
+                const std::string url = base
+                    + (update_path.empty() || update_path.front() != '/' ? "/" : "")
+                    + update_path;
+                transport.network_audio_allowed = false;
+                transport.voice_cancel_pending = true;
+                xEventGroupClearBits(transport.events, kVoiceAudioReady);
+                if (!roomhub::ota::start(
+                    url,
+                    version->valuestring,
+                    static_cast<std::size_t>(size->valuedouble),
+                    sha256->valuestring
+                )) {
+                    roomhub::board::show_tab5_firmware_failed();
+                    ESP_LOGW(kTag, "Firmware update command rejected");
+                }
+            } else {
+                ESP_LOGW(kTag, "Invalid firmware update command");
+            }
         } else if (message_type == "voice.audio.ready") {
             transport.network_audio_allowed = true;
             xEventGroupClearBits(transport.events, kVoiceFailed);
@@ -443,7 +482,8 @@ bool voice_transport_ready()
         return false;
     }
     const EventBits_t state = xEventGroupGetBits(context.events);
-    return (state & (kConnected | kRegistered)) == (kConnected | kRegistered);
+    return !roomhub::ota::in_progress()
+        && (state & (kConnected | kRegistered)) == (kConnected | kRegistered);
 }
 
 void fail_voice_stream(TransportContext &transport)
@@ -549,6 +589,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
         );
     }
     context.endpoint_id = config.endpoint_id;
+    context.roomhub_url = config.roomhub_url;
     roomhub::board::set_tab5_audio_event_callback(send_audio_playback_event);
     context.registration = registration_message(context.endpoint_id);
     if (

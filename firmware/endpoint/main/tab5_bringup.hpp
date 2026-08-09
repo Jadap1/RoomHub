@@ -23,5 +23,8 @@ void show_tab5_wireless_failed();
 void show_tab5_roomhub_connecting();
 void show_tab5_roomhub_retrying(unsigned int delay_seconds);
 void show_tab5_roomhub_registered();
+void show_tab5_firmware_updating(unsigned int percent);
+void show_tab5_firmware_failed();
+void show_tab5_firmware_restarting();
 
 }  // namespace roomhub::board

@@ -98,8 +98,12 @@ their production settings affect flashing and recovery.
 ## Flash layout
 
 The 16 MB flash contains two 4 MB application slots plus OTA selection data,
-so a future updater can install and verify a new firmware image without
-overwriting the running image. The remaining space provides 3 MB for ESP-SR
+so RoomHub can install and verify a new firmware image without overwriting the
+running image. The endpoint checks the advertised size and SHA-256 digest before
+selecting the inactive slot, then confirms the new image only after it reconnects
+and registers with RoomHub. If that health check is not reached, the rollback-
+enabled bootloader preserves the previous working image. The remaining space
+provides 3 MB for ESP-SR
 models, about 4.9 MB for future assets, and NVS for device configuration. With
 an erased OTA selection partition, ESP-IDF boots `ota_0` on the initial flash.
 

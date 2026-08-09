@@ -262,4 +262,34 @@ void show_tab5_roomhub_registered()
     bsp_display_unlock();
 }
 
+void show_tab5_firmware_updating(unsigned int percent)
+{
+    if (roomhub_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text_fmt(roomhub_status, "Firmware: updating %u%%", percent);
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0xf6b93b), 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_firmware_failed()
+{
+    if (roomhub_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text(roomhub_status, "Firmware: update rejected");
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0xe55039), 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_firmware_restarting()
+{
+    if (roomhub_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text(roomhub_status, "Firmware: verified; restarting");
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0x2bcbba), 0);
+    bsp_display_unlock();
+}
+
 }  // namespace roomhub::board

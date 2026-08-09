@@ -9,6 +9,8 @@ class Endpoint(BaseModel):
     room: str
     area_id: str | None = None
     capabilities: list[str]
+    firmware_version: str | None = None
+    firmware_version: str | None = None
 
     connected: bool = False
     last_seen: datetime | None = None

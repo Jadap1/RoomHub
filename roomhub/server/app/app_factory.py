@@ -3,7 +3,8 @@ import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 
 from .config import PROJECT_NAME, VERSION
 from .core import database
@@ -25,6 +26,7 @@ from .services.audio_command_service import (
     audio_command_service,
 )
 from .services.endpoint_assignment_service import endpoint_assignment_service
+from .services.firmware_service import firmware_service
 from .services.notification_service import NotificationRequest, notification_service
 
 
@@ -142,6 +144,58 @@ def create_app(
     @app.put("/endpoints/{endpoint_id}/area/{area_id}")
     async def assign_endpoint_area(endpoint_id: str, area_id: str):
         return endpoint_assignment_service.assign(endpoint_id, area_id)
+
+    @app.put("/firmware/endpoint")
+    async def publish_endpoint_firmware(
+        request: Request,
+        x_firmware_version: str = Header(),
+    ):
+        image = await request.body()
+        try:
+            manifest = firmware_service.publish(x_firmware_version, image)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        return manifest
+
+    @app.get("/firmware/endpoint/manifest")
+    async def endpoint_firmware_manifest():
+        manifest = firmware_service.manifest()
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="firmware not published")
+        return manifest
+
+    @app.get("/firmware/endpoint/image")
+    async def endpoint_firmware_image():
+        manifest = firmware_service.manifest()
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="firmware not published")
+        return FileResponse(
+            firmware_service.image_path,
+            media_type="application/octet-stream",
+            filename=f"roomhub-endpoint-{manifest.version}.bin",
+        )
+
+    @app.post("/firmware/endpoint/deploy/{endpoint_id}")
+    async def deploy_endpoint_firmware(endpoint_id: str):
+        endpoint = registry.get(endpoint_id)
+        manifest = firmware_service.manifest()
+        if endpoint is None or not endpoint.connected:
+            raise HTTPException(status_code=409, detail="endpoint not connected")
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="firmware not published")
+        await manager.send(endpoint_id, {
+            "version": "1.0",
+            "type": "firmware.update",
+            "source": "roomhub-core",
+            "target": endpoint_id,
+            "payload": {
+                "version": manifest.version,
+                "size": manifest.size,
+                "sha256": manifest.sha256,
+                "path": manifest.path,
+            },
+        })
+        return {"status": "sent", "target": endpoint_id, "firmware": manifest}
 
     @app.post("/notifications")
     async def create_notification(request: NotificationRequest):
