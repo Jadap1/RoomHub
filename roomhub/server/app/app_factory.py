@@ -24,6 +24,8 @@ from .services.audio_command_service import (
     AudioPlayRequest,
     audio_command_service,
 )
+from .services.endpoint_assignment_service import endpoint_assignment_service
+from .services.notification_service import NotificationRequest, notification_service
 
 
 def create_app(
@@ -136,6 +138,19 @@ def create_app(
     @app.get("/endpoints")
     async def endpoints():
         return registry.get_all()
+
+    @app.put("/endpoints/{endpoint_id}/area/{area_id}")
+    async def assign_endpoint_area(endpoint_id: str, area_id: str):
+        return endpoint_assignment_service.assign(endpoint_id, area_id)
+
+    @app.post("/notifications")
+    async def create_notification(request: NotificationRequest):
+        return await notification_service.notify(request)
+
+    @app.get("/notifications/{delivery_id}")
+    async def notification_delivery(delivery_id: str):
+        delivery = notification_service.get(delivery_id)
+        return delivery if delivery is not None else {"error": "not found"}
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):

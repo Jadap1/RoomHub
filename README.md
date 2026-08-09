@@ -51,8 +51,49 @@ The current read-only discovery endpoints are:
 - `GET /areas/{area_id}`
 - `GET /devices`
 - `GET /devices/{device_id}`
+- `PUT /endpoints/{endpoint_id}/area/{area_id}`
+- `POST /notifications`
+- `GET /notifications/{delivery_id}`
 
 RoomHub endpoints connect through `WS /ws`.
+
+## Room notifications
+
+Assign a connected endpoint to one of the Home Assistant area IDs returned by
+`GET /areas`:
+
+```text
+PUT /endpoints/tab5-01/area/kitchen
+```
+
+Then synthesize and deliver a Piper notification to every connected speaker in
+that area:
+
+```json
+POST /notifications
+{
+  "text": "Someone is at the front door",
+  "area_id": "kitchen",
+  "priority": "notification"
+}
+```
+
+Use `endpoint_id` instead of `area_id` to target one endpoint. The returned
+`delivery_id` can be read from `GET /notifications/{delivery_id}`; RoomHub
+tracks each endpoint through accepted, playing, and terminal playback states.
+
+Home Assistant can call the same API from an automation with a `rest_command`:
+
+```yaml
+rest_command:
+  roomhub_notify:
+    url: "http://cf9aeebe-roomhub:8000/notifications"
+    method: POST
+    content_type: application/json
+    payload: >-
+      {"text": {{ text | tojson }}, "area_id": {{ area_id | tojson }},
+      "priority": "notification"}
+```
 
 ## Tests
 

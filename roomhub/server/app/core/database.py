@@ -129,4 +129,14 @@ def initialise_database():
             """
         )
 
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_assignments
+            (
+                endpoint_id TEXT PRIMARY KEY,
+                area_id TEXT NOT NULL
+            )
+            """
+        )
+
         connection.commit()

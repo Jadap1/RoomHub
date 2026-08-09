@@ -16,3 +16,13 @@ The app uses Home Assistant's Supervisor-issued token internally. No long-lived
 access token needs to be copied into its configuration.
 
 RoomHub stores its runtime database in the app's persistent `/data` directory.
+
+## Home Assistant notification action
+
+The app publishes `POST /notifications` on port `8000`. Home Assistant
+automations can invoke it with a `rest_command` using `text` plus exactly one of
+`area_id` or `endpoint_id`. RoomHub asks the configured Assist pipeline to
+synthesize Piper speech, routes it only to connected endpoints with the
+`speaker` capability, and records per-endpoint delivery state. Assign endpoint
+areas with `PUT /endpoints/{endpoint_id}/area/{area_id}`; assignments persist in
+the RoomHub database and are restored when endpoints reconnect.
