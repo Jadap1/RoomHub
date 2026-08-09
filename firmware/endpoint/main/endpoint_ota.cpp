@@ -62,7 +62,10 @@ bool install(const UpdateRequest &request)
     config.buffer_size = kBufferBytes;
     config.crt_bundle_attach = esp_crt_bundle_attach;
     esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (client == nullptr || esp_http_client_open(client, 0) != ESP_OK) {
+    const esp_err_t open_result = client == nullptr
+        ? ESP_ERR_NO_MEM : esp_http_client_open(client, 0);
+    if (open_result != ESP_OK) {
+        ESP_LOGE(kTag, "Firmware HTTP open failed: %s", esp_err_to_name(open_result));
         if (client != nullptr) esp_http_client_cleanup(client);
         return false;
     }
@@ -70,6 +73,13 @@ bool install(const UpdateRequest &request)
     if (esp_http_client_get_status_code(client) != 200
         || (content_length >= 0
             && static_cast<std::size_t>(content_length) != request.size)) {
+        ESP_LOGE(
+            kTag,
+            "Firmware HTTP response invalid: status=%d length=%d expected=%u",
+            esp_http_client_get_status_code(client),
+            content_length,
+            static_cast<unsigned int>(request.size)
+        );
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         return false;
@@ -77,8 +87,10 @@ bool install(const UpdateRequest &request)
 
     const esp_partition_t *partition = esp_ota_get_next_update_partition(nullptr);
     esp_ota_handle_t ota_handle = 0;
-    if (partition == nullptr
-        || esp_ota_begin(partition, request.size, &ota_handle) != ESP_OK) {
+    const esp_err_t begin_result = partition == nullptr
+        ? ESP_ERR_NOT_FOUND : esp_ota_begin(partition, request.size, &ota_handle);
+    if (begin_result != ESP_OK) {
+        ESP_LOGE(kTag, "Firmware OTA begin failed: %s", esp_err_to_name(begin_result));
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         return false;
@@ -97,12 +109,22 @@ bool install(const UpdateRequest &request)
             kBufferBytes
         );
         if (count <= 0) {
+            ESP_LOGE(
+                kTag,
+                "Firmware HTTP read ended early: result=%d received=%u expected=%u complete=%s",
+                count,
+                static_cast<unsigned int>(received),
+                static_cast<unsigned int>(request.size),
+                esp_http_client_is_complete_data_received(client) ? "yes" : "no"
+            );
             okay = false;
             break;
         }
         received += static_cast<std::size_t>(count);
-        if (received > request.size
-            || esp_ota_write(ota_handle, buffer.get(), count) != ESP_OK) {
+        const esp_err_t write_result = received > request.size
+            ? ESP_ERR_INVALID_SIZE : esp_ota_write(ota_handle, buffer.get(), count);
+        if (write_result != ESP_OK) {
+            ESP_LOGE(kTag, "Firmware OTA write failed: %s", esp_err_to_name(write_result));
             okay = false;
             break;
         }
@@ -120,10 +142,18 @@ bool install(const UpdateRequest &request)
     okay = okay && received == request.size
         && std::memcmp(digest, request.sha256, sizeof(digest)) == 0;
     if (!okay) {
+        ESP_LOGE(
+            kTag,
+            "Firmware integrity check failed: received=%u expected=%u",
+            static_cast<unsigned int>(received),
+            static_cast<unsigned int>(request.size)
+        );
         esp_ota_abort(ota_handle);
         return false;
     }
-    if (esp_ota_end(ota_handle) != ESP_OK) {
+    const esp_err_t end_result = esp_ota_end(ota_handle);
+    if (end_result != ESP_OK) {
+        ESP_LOGE(kTag, "Firmware signature verification failed: %s", esp_err_to_name(end_result));
         return false;
     }
     esp_app_desc_t candidate{};
@@ -134,6 +164,7 @@ bool install(const UpdateRequest &request)
             candidate.version
         )
         || esp_ota_set_boot_partition(partition) != ESP_OK) {
+        ESP_LOGE(kTag, "Firmware candidate version or boot selection rejected");
         return false;
     }
     return true;

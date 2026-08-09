@@ -468,6 +468,19 @@ void heartbeat_task(void *argument)
             );
             if (!send_text(transport.client, heartbeat)) {
                 ESP_LOGW(kTag, "Could not send RoomHub heartbeat");
+                xEventGroupClearBits(transport.events, kConnected | kRegistered);
+                transport.network_audio_allowed = false;
+                xEventGroupSetBits(
+                    transport.events,
+                    kFailed | kVoiceFailed | kClientStopped
+                );
+                if (!transport.reconnect_pending.exchange(true)) {
+                    transport.restart_delay_ms =
+                        transport.reconnect_backoff.next_delay_ms();
+                }
+                roomhub::board::show_tab5_roomhub_retrying(
+                    (transport.restart_delay_ms.load() + 999) / 1000
+                );
             }
         }
         const bool registered = (state & (kConnected | kRegistered))
