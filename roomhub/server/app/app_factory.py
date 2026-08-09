@@ -145,6 +145,7 @@ def create_app(
         return registry.get_all()
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("//", response_class=HTMLResponse)
     @app.get("/manage/", response_class=HTMLResponse)
     async def management_page():
         return (Path(__file__).parent / "static" / "manage.html").read_text(
