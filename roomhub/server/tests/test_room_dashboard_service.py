@@ -52,6 +52,24 @@ class RoomDashboardServiceTests(unittest.TestCase):
             "entities": [],
         })
 
+    def test_snapshot_omits_endpoint_exclusions(self):
+        for entity_id in ("light.ceiling", "light.bedside"):
+            entity_registry.entities[entity_id] = Entity(
+                entity_id=entity_id,
+                entity_type="light",
+                name=entity_id.split(".")[1].title(),
+                area_id="kitchen",
+            )
+
+        snapshot = RoomDashboardService().snapshot(
+            "kitchen", excluded_entity_ids={"light.bedside"}
+        )
+
+        self.assertEqual(
+            [item["entity_id"] for item in snapshot["entities"]],
+            ["light.ceiling"],
+        )
+
     def test_legacy_endpoint_uses_six_entity_compatibility_snapshot(self):
         service = RoomDashboardService()
         self.assertEqual(service.maximum_entities_for_firmware("0.4.2"), 6)

@@ -139,4 +139,15 @@ def initialise_database():
             """
         )
 
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_entity_exclusions
+            (
+                endpoint_id TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                PRIMARY KEY (endpoint_id, entity_id)
+            )
+            """
+        )
+
         connection.commit()

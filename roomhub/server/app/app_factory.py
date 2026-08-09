@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel, Field
 
 from .config import PROJECT_NAME, VERSION
 from .core import database
@@ -26,10 +27,18 @@ from .services.audio_command_service import (
     audio_command_service,
 )
 from .services.endpoint_assignment_service import endpoint_assignment_service
+from .services.endpoint_dashboard_preferences_service import (
+    endpoint_dashboard_preferences_service,
+)
 from .services.firmware_service import firmware_service
 from .services.firmware_auth import configured_firmware_token, firmware_token_valid
 from .services.firmware_audit import firmware_audit
 from .services.notification_service import NotificationRequest, notification_service
+
+
+class EndpointManagementUpdate(BaseModel):
+    area_id: str
+    excluded_entity_ids: list[str] = Field(default_factory=list)
 
 
 def create_app(
@@ -142,6 +151,61 @@ def create_app(
     @app.get("/endpoints")
     async def endpoints():
         return registry.get_all()
+
+    @app.get("/manage/", response_class=HTMLResponse)
+    async def management_page():
+        return (Path(__file__).parent / "static" / "manage.html").read_text(
+            encoding="utf-8"
+        )
+
+    @app.get("/manage/api/config")
+    async def management_config():
+        endpoints = []
+        for endpoint_id, endpoint in registry.endpoints.items():
+            endpoints.append({
+                **endpoint.model_dump(mode="json"),
+                "entities": (
+                    endpoint_dashboard_preferences_service.eligible_entities(
+                        endpoint_id
+                    )
+                ),
+            })
+        endpoints.sort(key=lambda item: item["device_name"].casefold())
+        return {
+            "endpoints": endpoints,
+            "areas": sorted(
+                [area.model_dump() for area in area_registry.areas.values()],
+                key=lambda item: item["name"].casefold(),
+            ),
+        }
+
+    @app.put("/manage/api/endpoints/{endpoint_id}")
+    async def update_endpoint_management(
+        endpoint_id: str,
+        update: EndpointManagementUpdate,
+    ):
+        assignment = await endpoint_assignment_service.assign(
+            endpoint_id, update.area_id
+        )
+        if assignment["status"] != "assigned":
+            raise HTTPException(status_code=400, detail=assignment)
+        preferences = (
+            await endpoint_dashboard_preferences_service.replace_exclusions(
+                endpoint_id, set(update.excluded_entity_ids)
+            )
+        )
+        if preferences["status"] != "saved":
+            raise HTTPException(status_code=400, detail=preferences)
+        endpoint = registry.get(endpoint_id)
+        return {
+            "status": "saved",
+            "endpoint": endpoint.model_dump(mode="json"),
+            "entities": (
+                endpoint_dashboard_preferences_service.eligible_entities(
+                    endpoint_id
+                )
+            ),
+        }
 
     @app.put("/endpoints/{endpoint_id}/area/{area_id}")
     async def assign_endpoint_area(endpoint_id: str, area_id: str):

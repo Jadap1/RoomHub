@@ -17,6 +17,17 @@ access token needs to be copied into its configuration.
 
 RoomHub stores its runtime database in the app's persistent `/data` directory.
 
+## Endpoint management
+
+Open **RoomHub** from the Home Assistant sidebar, or select **Open Web UI** on
+the app page. Each registered endpoint has an area selector and visibility
+switches for the lights, switches, and climate entities in that area. Saving
+updates the endpoint immediately. Visibility choices persist across endpoint
+reconnects, app restarts, and temporary assignment to another area.
+
+Update, sensor, button, diagnostic, and configuration entities are excluded
+from endpoint dashboards automatically.
+
 ## Home Assistant notification action
 
 The app publishes `POST /notifications` on port `8000`. Home Assistant

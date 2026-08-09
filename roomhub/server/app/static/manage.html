@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RoomHub</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#111c30;--line:#263650;--text:#f4f7fb;--muted:#9bacbf;--accent:#21c7d9;--accent2:#167b91;--ok:#47d18c}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#07101d,#10243a);color:var(--text);font:15px system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+    main{max-width:900px;margin:auto;padding:32px 20px 60px}header{display:flex;align-items:center;gap:14px;margin-bottom:26px}.mark{display:grid;place-items:center;width:46px;height:46px;border:1px solid #2ee5f5;border-radius:13px;color:#2ee5f5;font-size:25px;box-shadow:0 0 18px #17a9bd44}h1{font-size:24px;margin:0}header p{margin:3px 0 0;color:var(--muted)}
+    .empty,.card{background:#111c30e8;border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 35px #0004}.empty{padding:34px;text-align:center;color:var(--muted)}.card{padding:22px;margin-bottom:18px}.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:20px}.card h2{margin:0 0 5px;font-size:19px}.meta{color:var(--muted);font-size:13px}.status{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:99px;background:#15263a;color:var(--muted);font-size:12px}.status::before{content:"";width:8px;height:8px;border-radius:50%;background:#708095}.status.on{color:#baf6d7}.status.on::before{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+    label.title{display:block;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:18px 0 8px}select{width:100%;padding:12px 13px;border-radius:10px;border:1px solid var(--line);background:#0c1728;color:var(--text);font:inherit;outline:none}select:focus{border-color:var(--accent)}
+    .entities{border:1px solid var(--line);border-radius:12px;overflow:hidden}.entity{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer}.entity:last-child{border:0}.entity:hover{background:#17243a}.icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#172b43;color:var(--accent);font-size:17px}.entity-name{font-weight:600}.entity-id{font-size:11px;color:var(--muted);margin-top:2px}.switch{position:relative;width:43px;height:24px}.switch input{opacity:0;width:0;height:0}.slider{position:absolute;inset:0;border-radius:99px;background:#435066;transition:.18s}.slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:white;transition:.18s}.switch input:checked+.slider{background:var(--accent2)}.switch input:checked+.slider:before{transform:translateX(19px)}
+    .actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:18px}.message{margin-right:auto;color:var(--muted);font-size:13px}.message.ok{color:var(--ok)}.message.error{color:#ff8c92}button{border:0;border-radius:10px;background:linear-gradient(135deg,#1ed6e4,#1688a3);color:#03151a;font:700 14px inherit;padding:11px 20px;cursor:pointer}button:disabled{opacity:.55;cursor:wait}.note{color:var(--muted);font-size:13px;margin:8px 0 0}.unsupported{margin-top:18px;padding:12px 14px;border-radius:10px;background:#0b1728;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body><main>
+  <header><div class="mark">⌂</div><div><h1>RoomHub</h1><p>Endpoint assignment and dashboard visibility</p></div></header>
+  <div id="content" class="empty">Loading RoomHub endpoints…</div>
+</main>
+<script>
+const content=document.querySelector('#content');
+const icons={light:'●',switch:'⏻',climate:'℃'};
+let model={endpoints:[],areas:[]};
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function load(){
+  try{const r=await fetch('api/config');if(!r.ok)throw Error(`HTTP ${r.status}`);model=await r.json();render()}
+  catch(e){content.className='empty';content.textContent=`Could not load RoomHub: ${e.message}`}
+}
+function render(){
+  if(!model.endpoints.length){content.className='empty';content.textContent='No RoomHub endpoints have registered yet.';return}
+  content.className='';content.innerHTML=model.endpoints.map(endpointCard).join('');
+  document.querySelectorAll('.area').forEach(s=>s.addEventListener('change',()=>areaChanged(s)));
+  document.querySelectorAll('.save').forEach(b=>b.addEventListener('click',()=>save(b.dataset.id)));
+}
+function endpointCard(ep){
+  const options=model.areas.map(a=>`<option value="${esc(a.area_id)}" ${a.area_id===ep.area_id?'selected':''}>${esc(a.name)}</option>`).join('');
+  const entities=ep.entities.length?ep.entities.map(e=>`<label class="entity"><span class="icon">${icons[e.entity_type]||'•'}</span><span><div class="entity-name">${esc(e.name)}</div><div class="entity-id">${esc(e.entity_id)}</div></span><span class="switch"><input class="visibility" type="checkbox" value="${esc(e.entity_id)}" ${e.visible?'checked':''}><span class="slider"></span></span></label>`).join(''):'<div class="entity"><span class="icon">—</span><span><div class="entity-name">No eligible entities</div><div class="entity-id">This area has no lights, switches, or climates.</div></span></div>';
+  return `<section class="card" data-id="${esc(ep.device_id)}"><div class="card-head"><div><h2>${esc(ep.device_name)}</h2><div class="meta">${esc(ep.device_id)} · firmware ${esc(ep.firmware_version||'unknown')}</div></div><span class="status ${ep.connected?'on':''}">${ep.connected?'Connected':'Offline'}</span></div><label class="title">Assigned area</label><select class="area" data-id="${esc(ep.device_id)}">${options}</select><label class="title">Entities shown on this display</label><div class="entities">${entities}</div><p class="note">New eligible entities are shown automatically. Switch off anything this display should hide.</p><div class="unsupported">Update, sensor, button, diagnostic, and configuration entities are excluded automatically.</div><div class="actions"><span class="message"></span><button class="save" data-id="${esc(ep.device_id)}">Save changes</button></div></section>`
+}
+async function areaChanged(select){
+  const ep=model.endpoints.find(x=>x.device_id===select.dataset.id);if(select.value===ep.area_id)return;
+  const card=select.closest('.card'), msg=card.querySelector('.message');msg.textContent='Save to load entities for the new area.';msg.className='message';
+  card.querySelector('.entities').innerHTML='<div class="entity"><span class="icon">↻</span><span><div class="entity-name">Area will change on save</div><div class="entity-id">The new area’s eligible entities will be shown by default.</div></span></div>';
+}
+async function save(id){
+  const card=document.querySelector(`.card[data-id="${CSS.escape(id)}"]`),button=card.querySelector('.save'),msg=card.querySelector('.message'),area=card.querySelector('.area').value;
+  const hidden=[...card.querySelectorAll('.visibility:not(:checked)')].map(x=>x.value);button.disabled=true;msg.textContent='Saving…';msg.className='message';
+  try{const r=await fetch(`api/endpoints/${encodeURIComponent(id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:area,excluded_entity_ids:hidden})});if(!r.ok)throw Error((await r.text())||`HTTP ${r.status}`);msg.textContent='Saved and sent to display';msg.className='message ok';setTimeout(load,700)}
+  catch(e){msg.textContent=`Save failed: ${e.message}`;msg.className='message error';button.disabled=false}
+}
+load();
+</script></body></html>
