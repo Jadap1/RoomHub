@@ -160,7 +160,11 @@ def create_app(
             raise HTTPException(status_code=401, detail="invalid firmware admin token")
         image = await request.body()
         try:
-            manifest = firmware_service.publish(x_firmware_version, image)
+            manifest = await asyncio.to_thread(
+                firmware_service.publish,
+                x_firmware_version,
+                image,
+            )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         firmware_audit.record(
