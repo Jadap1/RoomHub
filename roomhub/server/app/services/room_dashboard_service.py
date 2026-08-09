@@ -6,6 +6,12 @@ from ..events.entity_events import EntityStateChangedEvent
 
 
 SUPPORTED_ENTITY_TYPES = {"light", "switch", "climate"}
+DISPLAY_ATTRIBUTES = {
+    "brightness",
+    "current_temperature",
+    "hvac_action",
+    "temperature",
+}
 
 
 class RoomDashboardService:
@@ -20,18 +26,30 @@ class RoomDashboardService:
                     or entity.entity_category is not None
                 ):
                     continue
+                state = entity_registry.get_state(entity.entity_id)
+                compact_state = None
+                if state is not None:
+                    compact_state = {
+                        "state": state.get("state"),
+                        "available": state.get("available", True),
+                        "attributes": {
+                            key: value
+                            for key, value in (state.get("attributes") or {}).items()
+                            if key in DISPLAY_ATTRIBUTES
+                        },
+                    }
                 entities.append({
                     "entity_id": entity.entity_id,
                     "entity_type": entity.entity_type,
                     "name": entity.name,
                     "action": "activate",
-                    "state": entity_registry.get_state(entity.entity_id),
+                    "state": compact_state,
                 })
         entities.sort(key=lambda item: (item["entity_type"], item["name"].casefold()))
         return {
             "area_id": area_id,
             "area_name": area.name if area is not None else "Unassigned",
-            "entities": entities,
+            "entities": entities[:6],
         }
 
     async def send(self, endpoint_id: str) -> None:
