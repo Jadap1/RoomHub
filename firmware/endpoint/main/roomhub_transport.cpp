@@ -14,7 +14,9 @@
 #include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/task.h"
+#include "roomhub/recovery_backoff.hpp"
 #include "tab5_audio_service.hpp"
+#include "tab5_bringup.hpp"
 
 namespace roomhub::transport {
 namespace {
@@ -26,6 +28,7 @@ constexpr EventBits_t kFailed = BIT2;
 constexpr EventBits_t kVoiceAudioReady = BIT3;
 constexpr EventBits_t kVoiceResponseReady = BIT4;
 constexpr EventBits_t kVoiceFailed = BIT5;
+constexpr EventBits_t kClientStopped = BIT6;
 constexpr std::size_t kMaximumAudioFrameBytes = 1024;
 constexpr std::size_t kMaximumAudioBatchBytes = 8192;
 constexpr std::size_t kAudioStreamBufferBytes = 384000;
@@ -38,11 +41,15 @@ struct TransportContext {
     std::atomic_bool network_audio_allowed{false};
     std::atomic_bool voice_end_pending{false};
     std::atomic_bool voice_cancel_pending{false};
+    std::atomic_bool reconnect_pending{false};
+    std::atomic_bool restart_in_progress{false};
+    std::atomic_uint32_t restart_delay_ms{0};
     StreamBufferHandle_t voice_audio_stream = nullptr;
     StaticStreamBuffer_t *voice_audio_stream_state = nullptr;
     std::uint8_t *voice_audio_storage = nullptr;
     SemaphoreHandle_t voice_response_mutex = nullptr;
     VoiceResponse voice_response;
+    roomhub::recovery::Backoff reconnect_backoff{1000, 30000};
 };
 
 TransportContext context;
@@ -244,6 +251,7 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
         const std::string message_type(type->valuestring);
         if (message_type == "endpoint.registered") {
             xEventGroupSetBits(transport.events, kRegistered);
+            roomhub::board::show_tab5_roomhub_registered();
             ESP_LOGI(kTag, "Endpoint registration accepted by RoomHub");
         } else if (message_type == "voice.audio.ready") {
             transport.network_audio_allowed = true;
@@ -338,21 +346,46 @@ void websocket_event_handler(
 )
 {
     auto &transport = *static_cast<TransportContext *>(handler_argument);
-    auto &data = *static_cast<esp_websocket_event_data_t *>(event_data);
     if (event_id == WEBSOCKET_EVENT_CONNECTED) {
+        transport.reconnect_backoff.reset();
+        transport.reconnect_pending = false;
         xEventGroupClearBits(transport.events, kFailed);
         xEventGroupSetBits(transport.events, kConnected);
+        roomhub::board::show_tab5_roomhub_connecting();
         ESP_LOGI(kTag, "Connected to the RoomHub control service");
     } else if (event_id == WEBSOCKET_EVENT_DATA) {
-        handle_data(transport, data);
+        if (event_data != nullptr) {
+            handle_data(
+                transport,
+                *static_cast<esp_websocket_event_data_t *>(event_data)
+            );
+        }
     } else if (
         event_id == WEBSOCKET_EVENT_DISCONNECTED
         || event_id == WEBSOCKET_EVENT_ERROR
+        || event_id == WEBSOCKET_EVENT_CLOSED
+        || event_id == WEBSOCKET_EVENT_FINISH
     ) {
+        if (transport.restart_in_progress.load()) {
+            return;
+        }
         xEventGroupClearBits(transport.events, kConnected | kRegistered);
         transport.network_audio_allowed = false;
         xEventGroupClearBits(transport.events, kVoiceAudioReady);
         xEventGroupSetBits(transport.events, kFailed | kVoiceFailed);
+        xEventGroupSetBits(transport.events, kClientStopped);
+        if (transport.reconnect_pending.exchange(true)) {
+            return;
+        }
+        const std::uint32_t delay_ms = transport.reconnect_backoff.next_delay_ms();
+        transport.restart_delay_ms = delay_ms;
+        esp_websocket_client_set_reconnect_timeout(transport.client, delay_ms);
+        roomhub::board::show_tab5_roomhub_retrying((delay_ms + 999) / 1000);
+        ESP_LOGW(
+            kTag,
+            "RoomHub unavailable; reconnecting in %lu ms with local wake privacy active",
+            static_cast<unsigned long>(delay_ms)
+        );
     }
 }
 
@@ -360,8 +393,30 @@ void heartbeat_task(void *argument)
 {
     auto &transport = *static_cast<TransportContext *>(argument);
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
         const EventBits_t state = xEventGroupGetBits(transport.events);
+        if ((state & kClientStopped) != 0) {
+            const std::uint32_t delay_ms = transport.restart_delay_ms.exchange(0);
+            if (delay_ms > 0) {
+                vTaskDelay(pdMS_TO_TICKS(delay_ms));
+            }
+            transport.restart_in_progress = true;
+            // Stop is safe from this maintenance task and also tears down a
+            // half-open worker that no longer reports itself as connected.
+            esp_websocket_client_stop(transport.client);
+            xEventGroupClearBits(transport.events, kClientStopped);
+            transport.reconnect_pending = false;
+            roomhub::board::show_tab5_roomhub_connecting();
+            const esp_err_t restart = esp_websocket_client_start(transport.client);
+            transport.restart_in_progress = false;
+            if (restart == ESP_OK) {
+                ESP_LOGI(kTag, "Restarted the RoomHub WebSocket client after connection loss");
+            } else {
+                ESP_LOGW(kTag, "Could not restart RoomHub WebSocket client: %s", esp_err_to_name(restart));
+                transport.reconnect_pending = true;
+                transport.restart_delay_ms = transport.reconnect_backoff.next_delay_ms();
+            }
+            continue;
+        }
         if ((state & kConnected) != 0 && (state & kRegistered) == 0) {
             if (!send_text(transport.client, transport.registration)) {
                 ESP_LOGW(kTag, "Could not resend endpoint registration");
@@ -376,6 +431,9 @@ void heartbeat_task(void *argument)
                 ESP_LOGW(kTag, "Could not send RoomHub heartbeat");
             }
         }
+        const bool registered = (state & (kConnected | kRegistered))
+            == (kConnected | kRegistered);
+        vTaskDelay(pdMS_TO_TICKS(registered ? 10000 : 1000));
     }
 }
 
@@ -508,7 +566,9 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     websocket_config.uri = url.c_str();
     websocket_config.crt_bundle_attach = esp_crt_bundle_attach;
     websocket_config.network_timeout_ms = 10000;
-    websocket_config.reconnect_timeout_ms = 5000;
+    websocket_config.reconnect_timeout_ms = 1000;
+    websocket_config.ping_interval_sec = 5;
+    websocket_config.pingpong_timeout_sec = 5;
     websocket_config.buffer_size = 2048;
     websocket_config.user_agent = "RoomHub-ESP32-P4/1.0";
 
@@ -530,6 +590,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
         ESP_LOGE(kTag, "Could not start the RoomHub control connection");
         return result;
     }
+    roomhub::board::show_tab5_roomhub_connecting();
     if (xTaskCreate(
         heartbeat_task,
         "roomhub_heartbeat",

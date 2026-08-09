@@ -89,7 +89,6 @@ extern "C" void app_main(void)
         roomhub::provisioning::run_usb_provisioning();
     }
 
-    bool wireless_connected = false;
     if (endpoint_provisioned) {
         const roomhub::board::Tab5WirelessConnectionResult wireless_result =
             roomhub::board::connect_tab5_wifi(
@@ -102,7 +101,6 @@ extern "C" void app_main(void)
             wireless_result.radio_ready ? "ready" : "failed",
             wireless_result.connected ? "connected" : "unavailable"
         );
-        wireless_connected = wireless_result.connected;
     } else {
         const roomhub::board::Tab5WirelessScanResult wireless_result =
             roomhub::board::scan_tab5_wifi();
@@ -114,7 +112,7 @@ extern "C" void app_main(void)
         );
     }
 
-    if (wireless_connected) {
+    if (endpoint_provisioned) {
         const roomhub::transport::StartResult transport_result =
             roomhub::transport::start(endpoint_config);
         ESP_LOGI(

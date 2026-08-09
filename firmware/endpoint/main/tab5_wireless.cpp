@@ -10,6 +10,8 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/task.h"
+#include "roomhub/recovery_backoff.hpp"
 #include "tab5_bringup.hpp"
 
 namespace roomhub::board {
@@ -18,7 +20,13 @@ namespace {
 constexpr char kTag[] = "roomhub_wireless";
 constexpr EventBits_t kWifiConnected = BIT0;
 constexpr EventBits_t kWifiFailed = BIT1;
+constexpr EventBits_t kWifiReconnect = BIT2;
 bool wireless_powered = false;
+EventGroupHandle_t wireless_events = nullptr;
+esp_event_handler_instance_t wifi_handler = nullptr;
+esp_event_handler_instance_t ip_handler = nullptr;
+bool reconnect_task_started = false;
+roomhub::recovery::Backoff reconnect_backoff(1000, 30000);
 
 bool succeeded_or_already_initialized(esp_err_t result)
 {
@@ -66,12 +74,48 @@ void wifi_event_handler(
         event_group
     );
     if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        reconnect_backoff.reset();
+        xEventGroupClearBits(events, kWifiFailed | kWifiReconnect);
         xEventGroupSetBits(events, kWifiConnected);
+        show_tab5_wireless_connected();
     } else if (
         event_base == WIFI_EVENT
         && event_id == WIFI_EVENT_STA_DISCONNECTED
     ) {
-        xEventGroupSetBits(events, kWifiFailed);
+        xEventGroupClearBits(events, kWifiConnected);
+        xEventGroupSetBits(events, kWifiFailed | kWifiReconnect);
+    }
+}
+
+void wifi_reconnect_task(void *)
+{
+    while (true) {
+        xEventGroupWaitBits(
+            wireless_events,
+            kWifiReconnect,
+            pdTRUE,
+            pdFALSE,
+            portMAX_DELAY
+        );
+        if ((xEventGroupGetBits(wireless_events) & kWifiConnected) != 0) {
+            continue;
+        }
+        const std::uint32_t delay_ms = reconnect_backoff.next_delay_ms();
+        show_tab5_wireless_retrying((delay_ms + 999) / 1000);
+        ESP_LOGW(
+            kTag,
+            "Wi-Fi unavailable; reconnecting in %lu ms",
+            static_cast<unsigned long>(delay_ms)
+        );
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+        if ((xEventGroupGetBits(wireless_events) & kWifiConnected) != 0) {
+            continue;
+        }
+        const esp_err_t result = esp_wifi_connect();
+        if (result != ESP_OK) {
+            ESP_LOGW(kTag, "Wi-Fi reconnect request failed: %s", esp_err_to_name(result));
+            xEventGroupSetBits(wireless_events, kWifiReconnect);
+        }
     }
 }
 
@@ -173,30 +217,45 @@ Tab5WirelessConnectionResult connect_tab5_wifi(
     }
     result.radio_ready = true;
 
-    EventGroupHandle_t events = xEventGroupCreate();
-    if (events == nullptr) {
+    if (wireless_events == nullptr) {
+        wireless_events = xEventGroupCreate();
+    }
+    if (wireless_events == nullptr) {
         ESP_LOGE(kTag, "Could not allocate Wi-Fi connection events");
         show_tab5_wireless_failed();
         return result;
     }
 
-    esp_event_handler_instance_t wifi_handler = nullptr;
-    esp_event_handler_instance_t ip_handler = nullptr;
-    operation = esp_event_handler_instance_register(
-        WIFI_EVENT,
-        WIFI_EVENT_STA_DISCONNECTED,
-        wifi_event_handler,
-        events,
-        &wifi_handler
-    );
-    if (operation == ESP_OK) {
+    if (wifi_handler == nullptr) {
+        operation = esp_event_handler_instance_register(
+            WIFI_EVENT,
+            WIFI_EVENT_STA_DISCONNECTED,
+            wifi_event_handler,
+            wireless_events,
+            &wifi_handler
+        );
+    }
+    if (operation == ESP_OK && ip_handler == nullptr) {
         operation = esp_event_handler_instance_register(
             IP_EVENT,
             IP_EVENT_STA_GOT_IP,
             wifi_event_handler,
-            events,
+            wireless_events,
             &ip_handler
         );
+    }
+    if (operation == ESP_OK && !reconnect_task_started) {
+        reconnect_task_started = xTaskCreate(
+            wifi_reconnect_task,
+            "wifi_reconnect",
+            4096,
+            nullptr,
+            4,
+            nullptr
+        ) == pdPASS;
+        if (!reconnect_task_started) {
+            operation = ESP_ERR_NO_MEM;
+        }
     }
 
     wifi_config_t station_config{};
@@ -218,7 +277,7 @@ Tab5WirelessConnectionResult connect_tab5_wifi(
     EventBits_t connection_event = 0;
     if (operation == ESP_OK) {
         connection_event = xEventGroupWaitBits(
-            events,
+            wireless_events,
             kWifiConnected | kWifiFailed,
             pdTRUE,
             pdFALSE,
@@ -226,28 +285,12 @@ Tab5WirelessConnectionResult connect_tab5_wifi(
         );
     }
 
-    if (ip_handler != nullptr) {
-        esp_event_handler_instance_unregister(
-            IP_EVENT,
-            IP_EVENT_STA_GOT_IP,
-            ip_handler
-        );
-    }
-    if (wifi_handler != nullptr) {
-        esp_event_handler_instance_unregister(
-            WIFI_EVENT,
-            WIFI_EVENT_STA_DISCONNECTED,
-            wifi_handler
-        );
-    }
-    vEventGroupDelete(events);
-
     if ((connection_event & kWifiConnected) == 0) {
         ESP_LOGE(
             kTag,
             "ESP32-C6 could not connect to the provisioned Wi-Fi network"
         );
-        show_tab5_wireless_failed();
+        xEventGroupSetBits(wireless_events, kWifiReconnect);
         return result;
     }
 

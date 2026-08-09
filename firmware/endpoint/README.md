@@ -64,9 +64,13 @@ and audio remains local throughout wireless setup.
 
 After Wi-Fi is available, the endpoint opens the RoomHub `/ws` control service,
 registers its stable endpoint ID and hardware capabilities, and sends a status
-heartbeat every ten seconds. The client reconnects automatically after an
-interruption and registers again. This control connection does not make
-microphone audio eligible for transport.
+heartbeat every ten seconds. Wi-Fi and RoomHub recovery use bounded exponential
+backoff from one to thirty seconds. WebSocket ping/pong checks detect half-open
+connections after an access-point outage; every terminal connection failure
+tears down and restarts the client before registering the endpoint again. The
+status screen distinguishes connecting, registered, and retrying states. During
+every interruption, command audio remains ineligible for network transport and
+local wake-word privacy remains active.
 
 ## Persistent configuration
 
@@ -102,6 +106,7 @@ an erased OTA selection partition, ESP-IDF boots `ota_0` on the initial flash.
 ## Layout
 
 - `components/roomhub_config`: validated, persistent endpoint configuration.
+- `components/roomhub_recovery`: portable bounded reconnect-backoff policy.
 - `components/roomhub_voice`: portable voice-session state and privacy rules.
 - `main`: endpoint composition and, later, board-profile selection.
 - `components/roomhub_voice/test`: ESP-IDF Unity component tests for the

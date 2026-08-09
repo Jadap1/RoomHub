@@ -14,6 +14,7 @@ esp_codec_dev_handle_t microphone = nullptr;
 esp_codec_dev_handle_t speaker = nullptr;
 lv_obj_t *wake_word_status = nullptr;
 lv_obj_t *wireless_status = nullptr;
+lv_obj_t *roomhub_status = nullptr;
 
 void set_wake_word_status(const char *text, uint32_t color)
 {
@@ -89,6 +90,11 @@ void create_status_screen(
     lv_label_set_text(wireless_status, "Wireless: checking ESP32-C6");
     lv_obj_set_style_text_color(wireless_status, lv_color_hex(0xf6b93b), 0);
     lv_obj_set_style_pad_bottom(wireless_status, 12, 0);
+
+    roomhub_status = lv_label_create(panel);
+    lv_label_set_text(roomhub_status, "RoomHub: waiting for network");
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_set_style_pad_bottom(roomhub_status, 12, 0);
 
     wake_word_status = lv_label_create(panel);
     lv_label_set_text(wake_word_status, "Wake word: starting");
@@ -198,6 +204,20 @@ void show_tab5_wireless_connected()
     bsp_display_unlock();
 }
 
+void show_tab5_wireless_retrying(unsigned int delay_seconds)
+{
+    if (wireless_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text_fmt(
+        wireless_status,
+        "Wireless: reconnecting in %u s",
+        delay_seconds
+    );
+    lv_obj_set_style_text_color(wireless_status, lv_color_hex(0xf6b93b), 0);
+    bsp_display_unlock();
+}
+
 void show_tab5_wireless_failed()
 {
     if (wireless_status == nullptr || !bsp_display_lock(0)) {
@@ -205,6 +225,40 @@ void show_tab5_wireless_failed()
     }
     lv_label_set_text(wireless_status, "Wireless: ESP32-C6 failed");
     lv_obj_set_style_text_color(wireless_status, lv_color_hex(0xe55039), 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_roomhub_connecting()
+{
+    if (roomhub_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text(roomhub_status, "RoomHub: connecting");
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0xf6b93b), 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_roomhub_retrying(unsigned int delay_seconds)
+{
+    if (roomhub_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text_fmt(
+        roomhub_status,
+        "RoomHub: reconnecting in %u s",
+        delay_seconds
+    );
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0xf6b93b), 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_roomhub_registered()
+{
+    if (roomhub_status == nullptr || !bsp_display_lock(0)) {
+        return;
+    }
+    lv_label_set_text(roomhub_status, "RoomHub: connected and registered");
+    lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0x2bcbba), 0);
     bsp_display_unlock();
 }
 

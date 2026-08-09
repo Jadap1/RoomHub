@@ -18,6 +18,10 @@ void show_tab5_wake_word_listening();
 void show_tab5_wake_word_detected();
 void show_tab5_wireless_scan(unsigned int network_count);
 void show_tab5_wireless_connected();
+void show_tab5_wireless_retrying(unsigned int delay_seconds);
 void show_tab5_wireless_failed();
+void show_tab5_roomhub_connecting();
+void show_tab5_roomhub_retrying(unsigned int delay_seconds);
+void show_tab5_roomhub_registered();
 
 }  // namespace roomhub::board
