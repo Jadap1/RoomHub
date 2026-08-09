@@ -144,7 +144,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(updates._refresh_task, timeout=1)
 
         self.assertEqual((area.syncs, device.syncs, entity.registry_syncs), (1, 1, 1))
-        self.assertEqual(state_refreshes, 2)
+        self.assertEqual(state_refreshes, 1)
 
     async def test_registry_refresh_task_is_awaited_on_stop(self):
         started = asyncio.Event()

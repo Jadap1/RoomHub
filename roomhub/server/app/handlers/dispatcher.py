@@ -4,6 +4,7 @@ from .input_handler import handle_input
 from .voice_handler import handle_voice_transcript
 from ..core.command_router import command_router
 from .audio_handler import handle_audio_status
+from .dashboard_handler import handle_dashboard_activate
 
 
 async def dispatch(message):
@@ -31,6 +32,10 @@ async def dispatch(message):
     elif message_type == "audio.status":
 
         return await handle_audio_status(message)
+
+    elif message_type == "dashboard.activate":
+
+        return await handle_dashboard_activate(message)
 
     elif message_type in command_router.commands:
 

@@ -41,7 +41,7 @@ class RoomDashboardServiceTests(unittest.TestCase):
         )
         self.assertEqual(
             [item["action"] for item in snapshot["entities"]],
-            ["toggle", None],
+            ["activate", "activate"],
         )
 
     def test_unassigned_snapshot_is_empty(self):

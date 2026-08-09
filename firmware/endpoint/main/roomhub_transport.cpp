@@ -71,7 +71,7 @@ void send_dashboard_toggle(const char *entity_id)
     if (entity_id == nullptr || context.client == nullptr) {
         return;
     }
-    cJSON *message = create_message("light.toggle", context.endpoint_id);
+    cJSON *message = create_message("dashboard.activate", context.endpoint_id);
     if (message == nullptr) {
         return;
     }
@@ -121,7 +121,7 @@ void show_dashboard_payload(const cJSON *payload)
             .state = cJSON_IsString(state_value) ? state_value->valuestring : "unknown",
             .available = available == nullptr || cJSON_IsTrue(available),
             .actionable = cJSON_IsString(action)
-                && std::string(action->valuestring) == "toggle",
+                && std::string(action->valuestring) == "activate",
         });
     }
     roomhub::board::show_tab5_dashboard(

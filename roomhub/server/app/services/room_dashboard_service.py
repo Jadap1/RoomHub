@@ -24,7 +24,7 @@ class RoomDashboardService:
                     "entity_id": entity.entity_id,
                     "entity_type": entity.entity_type,
                     "name": entity.name,
-                    "action": "toggle" if entity.entity_type == "light" else None,
+                    "action": "activate",
                     "state": entity_registry.get_state(entity.entity_id),
                 })
         entities.sort(key=lambda item: (item["entity_type"], item["name"].casefold()))
