@@ -21,6 +21,7 @@ struct DashboardEntity {
     std::string entity_type;
     std::string name;
     std::string state;
+    std::string hvac_action;
     bool available = true;
     bool actionable = false;
     bool pinned = false;

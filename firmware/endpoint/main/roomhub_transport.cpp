@@ -121,6 +121,8 @@ void show_dashboard_payload(const cJSON *payload)
             ? cJSON_GetObjectItemCaseSensitive(attributes, "current_temperature") : nullptr;
         const cJSON *target_temperature = cJSON_IsObject(attributes)
             ? cJSON_GetObjectItemCaseSensitive(attributes, "temperature") : nullptr;
+        const cJSON *hvac_action = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "hvac_action") : nullptr;
         if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)
             || !cJSON_IsString(entity_type)) {
             continue;
@@ -130,6 +132,8 @@ void show_dashboard_payload(const cJSON *payload)
             .entity_type = entity_type->valuestring,
             .name = name->valuestring,
             .state = cJSON_IsString(state_value) ? state_value->valuestring : "unknown",
+            .hvac_action = cJSON_IsString(hvac_action)
+                ? hvac_action->valuestring : "",
             .available = available == nullptr || cJSON_IsTrue(available),
             .actionable = cJSON_IsString(action)
                 && std::string(action->valuestring) == "activate",
