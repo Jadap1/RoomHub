@@ -128,14 +128,6 @@ def create_app(
             return {"error": "not found"}
         return item.model_dump()
 
-    @app.get("/")
-    async def root():
-        return {
-            "project": PROJECT_NAME,
-            "version": VERSION,
-            "status": "online"
-        }
-
     @app.get("/health")
     async def health():
         return {
@@ -152,12 +144,14 @@ def create_app(
     async def endpoints():
         return registry.get_all()
 
+    @app.get("/", response_class=HTMLResponse)
     @app.get("/manage/", response_class=HTMLResponse)
     async def management_page():
         return (Path(__file__).parent / "static" / "manage.html").read_text(
             encoding="utf-8"
         )
 
+    @app.get("/api/config")
     @app.get("/manage/api/config")
     async def management_config():
         endpoints = []
@@ -179,6 +173,7 @@ def create_app(
             ),
         }
 
+    @app.put("/api/endpoints/{endpoint_id}")
     @app.put("/manage/api/endpoints/{endpoint_id}")
     async def update_endpoint_management(
         endpoint_id: str,
