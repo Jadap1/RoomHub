@@ -53,7 +53,7 @@ class RoomDashboardServiceTests(unittest.TestCase):
         })
 
     def test_snapshot_is_capped_and_compacts_state_attributes(self):
-        for index in range(8):
+        for index in range(40):
             entity = Entity(
                 entity_id=f"light.test_{index}",
                 entity_type="light",
@@ -68,12 +68,12 @@ class RoomDashboardServiceTests(unittest.TestCase):
 
         snapshot = RoomDashboardService().snapshot("kitchen")
 
-        self.assertEqual(len(snapshot["entities"]), 6)
+        self.assertEqual(len(snapshot["entities"]), 30)
         self.assertEqual(
             snapshot["entities"][0]["state"]["attributes"],
             {"brightness": 128},
         )
-        self.assertLess(len(json.dumps(snapshot).encode()), 2048)
+        self.assertLess(len(json.dumps(snapshot).encode()), 8192)
 
 
 if __name__ == "__main__":

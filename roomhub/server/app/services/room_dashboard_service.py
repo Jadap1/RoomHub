@@ -10,6 +10,9 @@ DISPLAY_ATTRIBUTES = {
     "brightness",
     "current_temperature",
     "hvac_action",
+    "max_temp",
+    "min_temp",
+    "target_temp_step",
     "temperature",
 }
 
@@ -49,7 +52,7 @@ class RoomDashboardService:
         return {
             "area_id": area_id,
             "area_name": area.name if area is not None else "Unassigned",
-            "entities": entities[:6],
+            "entities": entities[:30],
         }
 
     async def send(self, endpoint_id: str) -> None:

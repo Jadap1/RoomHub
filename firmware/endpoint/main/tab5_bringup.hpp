@@ -18,13 +18,18 @@ struct Tab5BringUpResult {
 
 struct DashboardEntity {
     std::string entity_id;
+    std::string entity_type;
     std::string name;
     std::string state;
     bool available = true;
     bool actionable = false;
+    float current_temperature = 0.0F;
+    float target_temperature = 0.0F;
+    bool has_current_temperature = false;
+    bool has_target_temperature = false;
 };
 
-using DashboardAction = void (*)(const char *entity_id);
+using DashboardAction = void (*)(const char *entity_id, const char *action);
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();

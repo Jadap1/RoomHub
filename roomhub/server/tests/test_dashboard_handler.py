@@ -43,10 +43,28 @@ class DashboardHandlerTests(unittest.IsolatedAsyncioTestCase):
             climate_result = await handle_dashboard_activate({
                 "source": "panel", "payload": {"entity_id": climate.entity_id},
             })
+            entity_registry.states[climate.entity_id] = EntityState(
+                state="heat",
+                attributes={
+                    "temperature": 20.0,
+                    "target_temp_step": 0.5,
+                    "min_temp": 5.0,
+                    "max_temp": 30.0,
+                },
+            )
+            temperature_result = await handle_dashboard_activate({
+                "source": "panel",
+                "payload": {
+                    "entity_id": climate.entity_id,
+                    "action": "temperature_up",
+                },
+            })
 
         self.assertEqual(switch_result["payload"]["command"], "toggle")
         self.assertEqual(climate_result["payload"]["command"], "turn_on")
-        self.assertEqual(publish.await_count, 2)
+        self.assertEqual(temperature_result["payload"]["command"], "set_temperature")
+        self.assertEqual(publish.await_args_list[2].args[0].data, {"temperature": 20.5})
+        self.assertEqual(publish.await_count, 3)
 
     async def test_rejects_entity_from_another_area(self):
         entity_registry.entities["light.other"] = Entity(

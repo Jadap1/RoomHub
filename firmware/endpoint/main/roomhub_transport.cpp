@@ -66,7 +66,7 @@ bool voice_transport_ready();
 cJSON *create_message(const char *type, const std::string &endpoint_id);
 std::string print_message(cJSON *message);
 
-void send_dashboard_toggle(const char *entity_id)
+void send_dashboard_action(const char *entity_id, const char *action)
 {
     if (entity_id == nullptr || context.client == nullptr) {
         return;
@@ -77,6 +77,7 @@ void send_dashboard_toggle(const char *entity_id)
     }
     cJSON *payload = cJSON_AddObjectToObject(message, "payload");
     cJSON_AddStringToObject(payload, "entity_id", entity_id);
+    cJSON_AddStringToObject(payload, "action", action == nullptr ? "activate" : action);
     if (!send_text(context.client, print_message(message))) {
         ESP_LOGW(kTag, "Could not send dashboard action for %s", entity_id);
     }
@@ -106,28 +107,43 @@ void show_dashboard_payload(const cJSON *payload)
     cJSON_ArrayForEach(item, items) {
         const cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(item, "entity_id");
         const cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
+        const cJSON *entity_type = cJSON_GetObjectItemCaseSensitive(item, "entity_type");
         const cJSON *state = cJSON_GetObjectItemCaseSensitive(item, "state");
         const cJSON *state_value = cJSON_IsObject(state)
             ? cJSON_GetObjectItemCaseSensitive(state, "state") : nullptr;
         const cJSON *available = cJSON_IsObject(state)
             ? cJSON_GetObjectItemCaseSensitive(state, "available") : nullptr;
         const cJSON *action = cJSON_GetObjectItemCaseSensitive(item, "action");
-        if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)) {
+        const cJSON *attributes = cJSON_IsObject(state)
+            ? cJSON_GetObjectItemCaseSensitive(state, "attributes") : nullptr;
+        const cJSON *current_temperature = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "current_temperature") : nullptr;
+        const cJSON *target_temperature = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "temperature") : nullptr;
+        if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)
+            || !cJSON_IsString(entity_type)) {
             continue;
         }
         entities.push_back({
             .entity_id = entity_id->valuestring,
+            .entity_type = entity_type->valuestring,
             .name = name->valuestring,
             .state = cJSON_IsString(state_value) ? state_value->valuestring : "unknown",
             .available = available == nullptr || cJSON_IsTrue(available),
             .actionable = cJSON_IsString(action)
                 && std::string(action->valuestring) == "activate",
+            .current_temperature = cJSON_IsNumber(current_temperature)
+                ? static_cast<float>(current_temperature->valuedouble) : 0.0F,
+            .target_temperature = cJSON_IsNumber(target_temperature)
+                ? static_cast<float>(target_temperature->valuedouble) : 0.0F,
+            .has_current_temperature = cJSON_IsNumber(current_temperature) != 0,
+            .has_target_temperature = cJSON_IsNumber(target_temperature) != 0,
         });
     }
     roomhub::board::show_tab5_dashboard(
         area_name->valuestring,
         entities,
-        send_dashboard_toggle
+        send_dashboard_action
     );
 }
 
@@ -708,7 +724,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     websocket_config.reconnect_timeout_ms = 1000;
     websocket_config.ping_interval_sec = 5;
     websocket_config.pingpong_timeout_sec = 5;
-    websocket_config.buffer_size = 2048;
+    websocket_config.buffer_size = 8192;
     websocket_config.user_agent = "RoomHub-ESP32-P4/1.0";
 
     context.client = esp_websocket_client_init(&websocket_config);
