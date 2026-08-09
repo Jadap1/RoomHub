@@ -326,8 +326,22 @@ void render_dashboard_content()
     lv_obj_clean(dashboard_grid);
     lv_obj_clean(dashboard_pager);
 
-    const bool navigation_needed = dashboard_entities.size() > kDashboardPageSize;
-    if (!navigation_needed) {
+    bool has_favourites = false;
+    bool has_lights = false;
+    bool has_switches = false;
+    bool has_climate = false;
+    for (const auto &entity : dashboard_entities) {
+        has_favourites = has_favourites || entity.pinned;
+        has_lights = has_lights || entity.entity_type == "light";
+        has_switches = has_switches || entity.entity_type == "switch";
+        has_climate = has_climate || entity.entity_type == "climate";
+    }
+    const unsigned int domain_count = static_cast<unsigned int>(has_lights)
+        + static_cast<unsigned int>(has_switches)
+        + static_cast<unsigned int>(has_climate);
+    const bool grouping_needed = dashboard_entities.size() > kDashboardPageSize
+        || has_favourites || domain_count > 1;
+    if (!grouping_needed) {
         selected_dashboard_group = "all";
         selected_dashboard_page = 0;
         lv_obj_add_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
@@ -461,7 +475,7 @@ void render_dashboard_content()
         }
     }
 
-    if (navigation_needed && page_count > 1) {
+    if (page_count > 1) {
         lv_obj_remove_flag(dashboard_pager, LV_OBJ_FLAG_HIDDEN);
         lv_obj_t *previous = lv_button_create(dashboard_pager);
         lv_obj_set_size(previous, 54, 34);
