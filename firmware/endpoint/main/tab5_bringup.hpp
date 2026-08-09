@@ -21,6 +21,7 @@ struct DashboardEntity {
     std::string name;
     std::string state;
     bool available = true;
+    bool actionable = false;
 };
 
 using DashboardAction = void (*)(const char *entity_id);

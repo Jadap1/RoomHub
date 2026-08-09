@@ -329,18 +329,20 @@ void show_tab5_dashboard(
             lv_color_hex(entity.state == "on" ? 0x2bcbba : 0x34495e),
             0
         );
-        if (!entity.available) {
+        if (!entity.available || !entity.actionable) {
             lv_obj_add_state(button, LV_STATE_DISABLED);
         }
         lv_obj_t *label = lv_label_create(button);
         lv_label_set_text_fmt(label, "%s\n%s", entity.name.c_str(), entity.state.c_str());
         lv_obj_center(label);
-        lv_obj_add_event_cb(
-            button,
-            on_dashboard_touch,
-            LV_EVENT_CLICKED,
-            const_cast<char *>(dashboard_entity_ids[index].c_str())
-        );
+        if (entity.actionable) {
+            lv_obj_add_event_cb(
+                button,
+                on_dashboard_touch,
+                LV_EVENT_CLICKED,
+                const_cast<char *>(dashboard_entity_ids[index].c_str())
+            );
+        }
     }
     bsp_display_unlock();
 }

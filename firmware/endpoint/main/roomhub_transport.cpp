@@ -111,6 +111,7 @@ void show_dashboard_payload(const cJSON *payload)
             ? cJSON_GetObjectItemCaseSensitive(state, "state") : nullptr;
         const cJSON *available = cJSON_IsObject(state)
             ? cJSON_GetObjectItemCaseSensitive(state, "available") : nullptr;
+        const cJSON *action = cJSON_GetObjectItemCaseSensitive(item, "action");
         if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)) {
             continue;
         }
@@ -119,6 +120,8 @@ void show_dashboard_payload(const cJSON *payload)
             .name = name->valuestring,
             .state = cJSON_IsString(state_value) ? state_value->valuestring : "unknown",
             .available = available == nullptr || cJSON_IsTrue(available),
+            .actionable = cJSON_IsString(action)
+                && std::string(action->valuestring) == "toggle",
         });
     }
     roomhub::board::show_tab5_dashboard(
