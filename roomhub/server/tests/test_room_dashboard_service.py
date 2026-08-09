@@ -70,6 +70,32 @@ class RoomDashboardServiceTests(unittest.TestCase):
             ["light.ceiling"],
         )
 
+    def test_snapshot_orders_and_marks_favourites(self):
+        for entity_id, name in (
+            ("light.ceiling", "Ceiling"),
+            ("light.lamp", "Lamp"),
+        ):
+            entity_registry.entities[entity_id] = Entity(
+                entity_id=entity_id,
+                entity_type="light",
+                name=name,
+                area_id="kitchen",
+            )
+
+        snapshot = RoomDashboardService().snapshot(
+            "kitchen",
+            entity_preferences={
+                "light.ceiling": {"position": 0, "pinned": False},
+                "light.lamp": {"position": 1, "pinned": True},
+            },
+        )
+
+        self.assertEqual(
+            [item["entity_id"] for item in snapshot["entities"]],
+            ["light.lamp", "light.ceiling"],
+        )
+        self.assertTrue(snapshot["entities"][0]["pinned"])
+
     def test_legacy_endpoint_uses_six_entity_compatibility_snapshot(self):
         service = RoomDashboardService()
         self.assertEqual(service.maximum_entities_for_firmware("0.4.2"), 6)

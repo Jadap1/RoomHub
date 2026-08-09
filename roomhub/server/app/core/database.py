@@ -150,4 +150,17 @@ def initialise_database():
             """
         )
 
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_entity_preferences
+            (
+                endpoint_id TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (endpoint_id, entity_id)
+            )
+            """
+        )
+
         connection.commit()

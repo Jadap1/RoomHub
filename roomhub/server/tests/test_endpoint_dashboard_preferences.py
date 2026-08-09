@@ -76,8 +76,54 @@ class EndpointDashboardPreferencesTests(unittest.IsolatedAsyncioTestCase):
                     "entity_type": "light",
                     "name": "Main",
                     "visible": False,
+                    "pinned": False,
                 }])
                 send.assert_awaited_once_with("panel")
+
+    async def test_order_and_favourites_are_persistent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "roomhub.db"
+            with patch.object(database, "DATABASE", path):
+                database.initialise_database()
+                registry.register(Endpoint(
+                    device_id="panel",
+                    device_name="Panel",
+                    room="Kitchen",
+                    area_id="kitchen",
+                    capabilities=["display"],
+                    connected=True,
+                ))
+                for entity_id, name in (
+                    ("light.ceiling", "Ceiling"),
+                    ("light.lamp", "Lamp"),
+                ):
+                    entity_registry.entities[entity_id] = Entity(
+                        entity_id=entity_id,
+                        entity_type="light",
+                        name=name,
+                        area_id="kitchen",
+                    )
+
+                service = EndpointDashboardPreferencesService()
+                with patch(
+                    "app.services.room_dashboard_service."
+                    "room_dashboard_service.send",
+                    new=AsyncMock(),
+                ):
+                    result = await service.replace_exclusions(
+                        "panel",
+                        set(),
+                        ["light.ceiling", "light.lamp"],
+                        {"light.lamp"},
+                    )
+
+                self.assertEqual(result["status"], "saved")
+                entities = service.eligible_entities("panel")
+                self.assertEqual(
+                    [item["entity_id"] for item in entities],
+                    ["light.lamp", "light.ceiling"],
+                )
+                self.assertTrue(entities[0]["pinned"])
 
     async def test_rejects_noneligible_entity_ids(self):
         with tempfile.TemporaryDirectory() as directory:

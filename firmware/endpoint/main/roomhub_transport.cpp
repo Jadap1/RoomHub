@@ -114,6 +114,7 @@ void show_dashboard_payload(const cJSON *payload)
         const cJSON *available = cJSON_IsObject(state)
             ? cJSON_GetObjectItemCaseSensitive(state, "available") : nullptr;
         const cJSON *action = cJSON_GetObjectItemCaseSensitive(item, "action");
+        const cJSON *pinned = cJSON_GetObjectItemCaseSensitive(item, "pinned");
         const cJSON *attributes = cJSON_IsObject(state)
             ? cJSON_GetObjectItemCaseSensitive(state, "attributes") : nullptr;
         const cJSON *current_temperature = cJSON_IsObject(attributes)
@@ -132,6 +133,7 @@ void show_dashboard_payload(const cJSON *payload)
             .available = available == nullptr || cJSON_IsTrue(available),
             .actionable = cJSON_IsString(action)
                 && std::string(action->valuestring) == "activate",
+            .pinned = cJSON_IsTrue(pinned) != 0,
             .current_temperature = cJSON_IsNumber(current_temperature)
                 ? static_cast<float>(current_temperature->valuedouble) : 0.0F,
             .target_temperature = cJSON_IsNumber(target_temperature)

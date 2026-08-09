@@ -23,9 +23,11 @@ class RoomDashboardService:
         area_id: str | None,
         maximum_entities: int = 30,
         excluded_entity_ids: set[str] | None = None,
+        entity_preferences: dict[str, dict] | None = None,
     ) -> dict:
         area = area_registry.get(area_id) if area_id else None
         excluded_entity_ids = excluded_entity_ids or set()
+        entity_preferences = entity_preferences or {}
         entities = []
         if area is not None:
             for entity in entity_registry.entities.values():
@@ -53,9 +55,20 @@ class RoomDashboardService:
                     "entity_type": entity.entity_type,
                     "name": entity.name,
                     "action": "activate",
+                    "pinned": entity_preferences.get(
+                        entity.entity_id, {}
+                    ).get("pinned", False),
                     "state": compact_state,
                 })
-        entities.sort(key=lambda item: (item["entity_type"], item["name"].casefold()))
+        default_position = len(entity_preferences)
+        entities.sort(key=lambda item: (
+            not item["pinned"],
+            entity_preferences.get(item["entity_id"], {}).get(
+                "position", default_position
+            ),
+            item["entity_type"],
+            item["name"].casefold(),
+        ))
         return {
             "area_id": area_id,
             "area_name": area.name if area is not None else "Unassigned",
@@ -91,6 +104,9 @@ class RoomDashboardService:
                 endpoint.area_id,
                 self.maximum_entities_for_firmware(endpoint.firmware_version),
                 endpoint_dashboard_preferences_service.excluded_entity_ids(
+                    endpoint_id
+                ),
+                endpoint_dashboard_preferences_service.entity_preferences(
                     endpoint_id
                 ),
             ),

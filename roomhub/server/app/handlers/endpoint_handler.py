@@ -25,6 +25,9 @@ async def handle_endpoint_register(message):
                 endpoint_dashboard_preferences_service.excluded_entity_ids(
                     endpoint.device_id
                 ),
+                endpoint_dashboard_preferences_service.entity_preferences(
+                    endpoint.device_id
+                ),
             ),
         }
     }

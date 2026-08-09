@@ -39,6 +39,8 @@ from .services.notification_service import NotificationRequest, notification_ser
 class EndpointManagementUpdate(BaseModel):
     area_id: str
     excluded_entity_ids: list[str] = Field(default_factory=list)
+    entity_order: list[str] = Field(default_factory=list)
+    pinned_entity_ids: list[str] = Field(default_factory=list)
 
 
 def create_app(
@@ -187,7 +189,10 @@ def create_app(
             raise HTTPException(status_code=400, detail=assignment)
         preferences = (
             await endpoint_dashboard_preferences_service.replace_exclusions(
-                endpoint_id, set(update.excluded_entity_ids)
+                endpoint_id,
+                set(update.excluded_entity_ids),
+                update.entity_order or None,
+                set(update.pinned_entity_ids),
             )
         )
         if preferences["status"] != "saved":

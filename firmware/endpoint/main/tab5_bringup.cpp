@@ -424,6 +424,10 @@ void show_tab5_dashboard(
             lv_color_hex(entity.state == "on" ? 0x2bcbba : 0x34495e),
             0
         );
+        if (entity.pinned) {
+            lv_obj_set_style_border_width(button, 3, 0);
+            lv_obj_set_style_border_color(button, lv_color_hex(0xffd166), 0);
+        }
         if (!entity.available || !entity.actionable) {
             lv_obj_add_state(button, LV_STATE_DISABLED);
         }
@@ -448,7 +452,11 @@ void show_tab5_dashboard(
         lv_obj_set_width(name, 190);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
-        lv_label_set_text(name, entity.name.c_str());
+        lv_label_set_text_fmt(
+            name,
+            entity.pinned ? "* %s" : "%s",
+            entity.name.c_str()
+        );
         lv_obj_t *state = lv_label_create(button);
         lv_label_set_text(state, entity.available ? entity.state.c_str() : "Unavailable");
         if (entity.actionable) {

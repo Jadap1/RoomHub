@@ -23,6 +23,7 @@ struct DashboardEntity {
     std::string state;
     bool available = true;
     bool actionable = false;
+    bool pinned = false;
     float current_temperature = 0.0F;
     float target_temperature = 0.0F;
     bool has_current_temperature = false;
