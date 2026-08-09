@@ -19,11 +19,15 @@ class ConnectionManager:
 
     def disconnect(
         self,
-        endpoint_id: str
-    ):
+        endpoint_id: str,
+        websocket: WebSocket | None = None,
+    ) -> bool:
 
-        if endpoint_id in self.connections:
+        current = self.connections.get(endpoint_id)
+        if current is not None and (websocket is None or current is websocket):
             del self.connections[endpoint_id]
+            return True
+        return False
 
 
     def get(

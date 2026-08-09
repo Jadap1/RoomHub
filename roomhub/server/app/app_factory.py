@@ -329,10 +329,10 @@ def create_app(
         finally:
             await audio.close()
             if endpoint_id:
-                endpoint = registry.get(endpoint_id)
-                if endpoint:
-                    endpoint.connected = False
-                manager.disconnect(endpoint_id)
+                if manager.disconnect(endpoint_id, websocket):
+                    endpoint = registry.get(endpoint_id)
+                    if endpoint:
+                        endpoint.connected = False
 
     @app.post("/test/display/{endpoint_id}")
     async def test_display(endpoint_id: str):
