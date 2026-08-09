@@ -52,6 +52,12 @@ class RoomDashboardServiceTests(unittest.TestCase):
             "entities": [],
         })
 
+    def test_legacy_endpoint_uses_six_entity_compatibility_snapshot(self):
+        service = RoomDashboardService()
+        self.assertEqual(service.maximum_entities_for_firmware("0.4.2"), 6)
+        self.assertEqual(service.maximum_entities_for_firmware("0.5.0"), 30)
+        self.assertEqual(service.maximum_entities_for_firmware(None), 6)
+
     def test_snapshot_is_capped_and_compacts_state_attributes(self):
         for index in range(40):
             entity = Entity(

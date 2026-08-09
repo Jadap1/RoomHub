@@ -18,7 +18,7 @@ DISPLAY_ATTRIBUTES = {
 
 
 class RoomDashboardService:
-    def snapshot(self, area_id: str | None) -> dict:
+    def snapshot(self, area_id: str | None, maximum_entities: int = 30) -> dict:
         area = area_registry.get(area_id) if area_id else None
         entities = []
         if area is not None:
@@ -52,8 +52,18 @@ class RoomDashboardService:
         return {
             "area_id": area_id,
             "area_name": area.name if area is not None else "Unassigned",
-            "entities": entities[:30],
+            "entities": entities[:maximum_entities],
         }
+
+    @staticmethod
+    def maximum_entities_for_firmware(firmware_version: str | None) -> int:
+        try:
+            major, minor, *_ = (
+                int(part) for part in (firmware_version or "").split(".")
+            )
+        except (TypeError, ValueError):
+            return 6
+        return 30 if (major, minor) >= (0, 5) else 6
 
     async def send(self, endpoint_id: str) -> None:
         endpoint = registry.get(endpoint_id)
@@ -64,7 +74,10 @@ class RoomDashboardService:
             "type": "room.dashboard",
             "source": "roomhub-core",
             "target": endpoint_id,
-            "payload": self.snapshot(endpoint.area_id),
+            "payload": self.snapshot(
+                endpoint.area_id,
+                self.maximum_entities_for_firmware(endpoint.firmware_version),
+            ),
         })
 
     async def handle_state_changed(self, event: EntityStateChangedEvent) -> None:

@@ -14,6 +14,11 @@ async def handle_endpoint_register(message):
         "payload": {
             "device_id": endpoint.device_id,
             "room": endpoint.room,
-            "dashboard": room_dashboard_service.snapshot(endpoint.area_id),
+            "dashboard": room_dashboard_service.snapshot(
+                endpoint.area_id,
+                room_dashboard_service.maximum_entities_for_firmware(
+                    endpoint.firmware_version
+                ),
+            ),
         }
     }
