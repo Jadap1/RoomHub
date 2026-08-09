@@ -137,3 +137,91 @@ Purpose:
 
 Aborts the current audio session without resolving an intent. Core responds
 with `voice.audio.cancelled`.
+
+---
+
+# audio.play
+
+Direction: Core to Endpoint
+
+Queues an MP3 with the endpoint's single audio owner. `priority` is one of
+`emergency`, `intercom`, `voice_assistant`, `media`, or `notification`.
+Higher-priority requests interrupt lower-priority playback; equal and lower
+priorities are queued in priority order.
+
+```json
+{
+  "version": "1.0",
+  "type": "audio.play",
+  "source": "roomhub-core",
+  "target": "kitchen-panel",
+  "payload": {
+    "request_id": "doorbell-202",
+    "url": "https://roomhub.local/audio/doorbell.mp3",
+    "mime_type": "audio/mpeg",
+    "priority": "notification"
+  }
+}
+```
+
+---
+
+# audio.stop
+
+Direction: Core to Endpoint
+
+Cancels the active or queued request matching `request_id`.
+
+---
+
+# audio.status
+
+Direction: Endpoint to Core
+
+Reports `accepted`, `rejected`, `playing`, `completed`, `interrupted`,
+`failed`, `stopped`, or `not_found` for an audio request. Core responds with
+`audio.status.ack` so delivery is visible on both sides of the connection.
+
+---
+
+# audio.play
+
+Direction: Core to Endpoint
+
+Queues an MP3 with the endpoint's single audio owner. `priority` is one of
+`emergency`, `intercom`, `voice_assistant`, `media`, or `notification`.
+Higher-priority requests interrupt lower-priority playback; equal and lower
+priorities are queued in priority order.
+
+```json
+{
+  "version": "1.0",
+  "type": "audio.play",
+  "source": "roomhub-core",
+  "target": "kitchen-panel",
+  "payload": {
+    "request_id": "doorbell-202",
+    "url": "https://roomhub.local/audio/doorbell.mp3",
+    "mime_type": "audio/mpeg",
+    "priority": "notification"
+  }
+}
+```
+
+---
+
+# audio.stop
+
+Direction: Core to Endpoint
+
+Cancels the active or queued request matching `request_id`.
+
+---
+
+# audio.status
+
+Direction: Endpoint to Core
+
+Reports `accepted`, `rejected`, `playing`, `completed`, `interrupted`,
+`failed`, `stopped`, or `not_found` for an audio request. Core responds with
+`audio.status.ack` so delivery is visible on both sides of the connection.

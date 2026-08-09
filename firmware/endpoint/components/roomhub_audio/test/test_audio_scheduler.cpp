@@ -1,0 +1,7 @@
+#include "roomhub/audio_scheduler.hpp"
+#include "unity.h"
+using namespace roomhub::audio;
+TEST_CASE("first audio request starts immediately", "[audio]") { Scheduler s; auto r=s.submit({1,Priority::notification}); TEST_ASSERT_EQUAL(SubmitAction::start,r.action); TEST_ASSERT_EQUAL_UINT32(1,s.active().token); }
+TEST_CASE("higher priority interrupts and lower priority queues", "[audio]") { Scheduler s; s.submit({1,Priority::notification}); TEST_ASSERT_EQUAL(SubmitAction::queued,s.submit({2,Priority::notification}).action); auto r=s.submit({3,Priority::voice_assistant}); TEST_ASSERT_EQUAL(SubmitAction::interrupt,r.action); TEST_ASSERT_EQUAL_UINT32(1,r.interrupted_token); TEST_ASSERT_EQUAL_UINT32(3,s.active().token); TEST_ASSERT_EQUAL_UINT32(1,s.queued()); }
+TEST_CASE("completion and cancellation advance priority queue", "[audio]") { Scheduler s; s.submit({1,Priority::voice_assistant}); s.submit({2,Priority::notification}); s.submit({3,Priority::media}); TEST_ASSERT_TRUE(s.complete(1)); TEST_ASSERT_EQUAL_UINT32(3,s.active().token); TEST_ASSERT_TRUE(s.cancel(3)); TEST_ASSERT_EQUAL_UINT32(2,s.active().token); }
+TEST_CASE("duplicate and zero tokens are rejected", "[audio]") { Scheduler s; TEST_ASSERT_EQUAL(SubmitAction::rejected,s.submit({0,Priority::notification}).action); s.submit({1,Priority::notification}); TEST_ASSERT_EQUAL(SubmitAction::rejected,s.submit({1,Priority::emergency}).action); }

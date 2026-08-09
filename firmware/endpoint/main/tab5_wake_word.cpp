@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 #include "model_path.h"
 #include "roomhub_transport.hpp"
+#include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
 
 namespace roomhub::board {
@@ -33,6 +34,7 @@ const esp_afe_sr_iface_t *afe_handle = nullptr;
 esp_afe_sr_data_t *afe_data = nullptr;
 std::atomic_bool detector_running{false};
 roomhub::voice::VoiceSession *voice_session = nullptr;
+std::uint32_t voice_playback_token = 0;
 
 std::uint64_t now_ms()
 {
@@ -67,7 +69,12 @@ void microphone_feed_task(void *)
         channel_count,
         samples_per_channel
     );
+    bool feed_backpressure = false;
     while (detector_running) {
+        if (tab5_audio_output_active()) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
         const int read_result = esp_codec_dev_read(
             microphone_handle,
             samples,
@@ -79,7 +86,7 @@ void microphone_feed_task(void *)
             break;
         }
         const int fed_samples = afe_handle->feed(afe_data, samples);
-        if (fed_samples <= 0) {
+        if (fed_samples < 0) {
             ESP_LOGE(
                 kTag,
                 "ESP-SR audio feed failed: %d samples accepted",
@@ -87,6 +94,22 @@ void microphone_feed_task(void *)
             );
             detector_running = false;
             break;
+        }
+        if (fed_samples == 0) {
+            // Fetch can pause briefly while the post-wake network session is
+            // negotiated. A full AFE ring buffer is backpressure, not a
+            // microphone failure; the oldest unconsumed frame is discarded.
+            if (!feed_backpressure) {
+                ESP_LOGW(
+                    kTag,
+                    "ESP-SR feed paused while its ring buffer is full"
+                );
+                feed_backpressure = true;
+            }
+            vTaskDelay(pdMS_TO_TICKS(10));
+        } else if (feed_backpressure) {
+            ESP_LOGI(kTag, "ESP-SR feed resumed");
+            feed_backpressure = false;
         }
     }
 
@@ -118,6 +141,7 @@ void wake_word_fetch_task(void *)
                 static_cast<double>(result->data_volume)
             );
             show_tab5_wake_word_detected();
+            interrupt_tab5_audio_for_voice_capture();
             const auto action = voice_session->on_wake_word_detected(now_ms());
             if (roomhub::voice::has_action(
                 action,
@@ -168,13 +192,64 @@ void wake_word_fetch_task(void *)
         ) {
             const auto response = roomhub::transport::voice_response_state();
             if (response == roomhub::transport::VoiceResponseState::ready) {
-                voice_session->on_response_ready();
-                voice_session->on_playback_finished();
-                restore_private_listening_state();
+                const auto voice_response =
+                    roomhub::transport::take_voice_response();
+                const auto playback_action = voice_session->on_response_ready();
+                bool playback_ok = true;
+                if (roomhub::voice::has_action(
+                        playback_action,
+                        roomhub::voice::SessionAction::begin_playback
+                    ) && !voice_response.speech_url.empty()) {
+                    if (voice_response.mime_type != "audio/mpeg") {
+                        ESP_LOGE(
+                            kTag,
+                            "Unsupported Piper media type: %s",
+                            voice_response.mime_type.c_str()
+                        );
+                        playback_ok = false;
+                    } else {
+                        voice_playback_token = submit_tab5_audio(
+                            "voice-response",
+                            voice_response.speech_url,
+                            voice_response.mime_type,
+                            roomhub::audio::Priority::voice_assistant,
+                            true
+                        );
+                        playback_ok = voice_playback_token != 0;
+                    }
+                }
+                if (!playback_ok) {
+                    voice_session->on_failure();
+                    restore_private_listening_state();
+                    continue;
+                }
+                if (voice_playback_token == 0) {
+                    voice_session->on_playback_finished();
+                    restore_private_listening_state();
+                }
             } else if (
                 response == roomhub::transport::VoiceResponseState::failed
             ) {
                 voice_session->on_failure();
+                restore_private_listening_state();
+            }
+        } else if (
+            voice_session->state()
+            == roomhub::voice::SessionState::playing_response
+        ) {
+            const auto playback = tab5_audio_state(voice_playback_token);
+            if (playback == AudioPlaybackState::completed) {
+                afe_handle->reset_buffer(afe_data);
+                voice_session->on_playback_finished();
+                voice_playback_token = 0;
+                restore_private_listening_state();
+            } else if (
+                playback == AudioPlaybackState::interrupted
+                || playback == AudioPlaybackState::failed
+            ) {
+                afe_handle->reset_buffer(afe_data);
+                voice_session->on_failure();
+                voice_playback_token = 0;
                 restore_private_listening_state();
             }
         }

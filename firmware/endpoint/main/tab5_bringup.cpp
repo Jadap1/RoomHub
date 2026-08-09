@@ -119,6 +119,7 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
     result.microphone = microphone;
     speaker = bsp_audio_codec_speaker_init();
     result.speaker_ready = speaker != nullptr;
+    result.speaker = speaker;
     if (result.speaker_ready) {
         const esp_err_t disable_result = bsp_feature_enable(
             BSP_FEATURE_SPEAKER,

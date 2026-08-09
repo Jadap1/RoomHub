@@ -11,8 +11,10 @@
 #include "esp_websocket_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/task.h"
+#include "tab5_audio_service.hpp"
 
 namespace roomhub::transport {
 namespace {
@@ -39,9 +41,17 @@ struct TransportContext {
     StreamBufferHandle_t voice_audio_stream = nullptr;
     StaticStreamBuffer_t *voice_audio_stream_state = nullptr;
     std::uint8_t *voice_audio_storage = nullptr;
+    SemaphoreHandle_t voice_response_mutex = nullptr;
+    VoiceResponse voice_response;
 };
 
 TransportContext context;
+
+bool send_text(
+    esp_websocket_client_handle_t client,
+    const std::string &message
+);
+bool voice_transport_ready();
 
 std::string websocket_url(const std::string &roomhub_url)
 {
@@ -142,6 +152,65 @@ std::string voice_audio_message(
     return print_message(message);
 }
 
+std::string audio_status_message(
+    const std::string &endpoint_id,
+    const char *request_id,
+    const char *status
+)
+{
+    cJSON *message = create_message("audio.status", endpoint_id);
+    if (message == nullptr) {
+        return {};
+    }
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(payload, "request_id", request_id);
+    cJSON_AddStringToObject(payload, "status", status);
+    return print_message(message);
+}
+
+roomhub::audio::Priority audio_priority(const cJSON *value)
+{
+    if (!cJSON_IsString(value) || value->valuestring == nullptr) {
+        return roomhub::audio::Priority::notification;
+    }
+    const std::string priority(value->valuestring);
+    if (priority == "emergency") return roomhub::audio::Priority::emergency;
+    if (priority == "intercom") return roomhub::audio::Priority::intercom;
+    if (priority == "voice_assistant") return roomhub::audio::Priority::voice_assistant;
+    if (priority == "media") return roomhub::audio::Priority::media;
+    return roomhub::audio::Priority::notification;
+}
+
+void send_audio_playback_event(
+    const std::string &request_id,
+    roomhub::board::AudioPlaybackState state
+)
+{
+    const char *status = nullptr;
+    switch (state) {
+        case roomhub::board::AudioPlaybackState::playing:
+            status = "playing";
+            break;
+        case roomhub::board::AudioPlaybackState::completed:
+            status = "completed";
+            break;
+        case roomhub::board::AudioPlaybackState::interrupted:
+            status = "interrupted";
+            break;
+        case roomhub::board::AudioPlaybackState::failed:
+            status = "failed";
+            break;
+        default:
+            return;
+    }
+    if (voice_transport_ready()) {
+        send_text(
+            context.client,
+            audio_status_message(context.endpoint_id, request_id.c_str(), status)
+        );
+    }
+}
+
 bool send_text(
     esp_websocket_client_handle_t client,
     const std::string &message
@@ -191,8 +260,69 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             ESP_LOGW(kTag, "RoomHub rejected or failed the voice audio stream");
         } else if (message_type.rfind("voice.intent.", 0) == 0) {
             transport.network_audio_allowed = false;
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(
+                message,
+                "payload"
+            );
+            const cJSON *speech = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "speech")
+                : nullptr;
+            const cJSON *url = cJSON_IsObject(speech)
+                ? cJSON_GetObjectItemCaseSensitive(speech, "url")
+                : nullptr;
+            const cJSON *mime_type = cJSON_IsObject(speech)
+                ? cJSON_GetObjectItemCaseSensitive(speech, "mime_type")
+                : nullptr;
+            if (xSemaphoreTake(transport.voice_response_mutex, 0) == pdTRUE) {
+                transport.voice_response = {};
+                if (cJSON_IsString(url) && url->valuestring != nullptr
+                    && cJSON_IsString(mime_type)
+                    && mime_type->valuestring != nullptr) {
+                    transport.voice_response.speech_url = url->valuestring;
+                    transport.voice_response.mime_type = mime_type->valuestring;
+                }
+                xSemaphoreGive(transport.voice_response_mutex);
+            }
             xEventGroupSetBits(transport.events, kVoiceResponseReady);
             ESP_LOGI(kTag, "RoomHub completed the voice intent request");
+        } else if (message_type == "audio.play") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            const cJSON *request_id = cJSON_GetObjectItemCaseSensitive(payload, "request_id");
+            const cJSON *url = cJSON_GetObjectItemCaseSensitive(payload, "url");
+            const cJSON *mime_type = cJSON_GetObjectItemCaseSensitive(payload, "mime_type");
+            const cJSON *priority = cJSON_GetObjectItemCaseSensitive(payload, "priority");
+            const bool valid = cJSON_IsString(request_id) && request_id->valuestring
+                && cJSON_IsString(url) && url->valuestring
+                && cJSON_IsString(mime_type) && mime_type->valuestring;
+            const std::uint32_t token = valid ? roomhub::board::submit_tab5_audio(
+                request_id->valuestring,
+                url->valuestring,
+                mime_type->valuestring,
+                audio_priority(priority)
+            ) : 0;
+            send_text(
+                transport.client,
+                audio_status_message(
+                    transport.endpoint_id,
+                    valid ? request_id->valuestring : "invalid",
+                    token == 0 ? "rejected" : "accepted"
+                )
+            );
+        } else if (message_type == "audio.stop") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            const cJSON *request_id = cJSON_GetObjectItemCaseSensitive(payload, "request_id");
+            const bool stopped = cJSON_IsString(request_id)
+                && request_id->valuestring
+                && roomhub::board::cancel_tab5_audio(request_id->valuestring);
+            send_text(
+                transport.client,
+                audio_status_message(
+                    transport.endpoint_id,
+                    cJSON_IsString(request_id) && request_id->valuestring
+                        ? request_id->valuestring : "invalid",
+                    stopped ? "stopped" : "not_found"
+                )
+            );
         } else if (message_type != "endpoint.heartbeat_ack") {
             ESP_LOGI(kTag, "RoomHub control message received: %s", type->valuestring);
         }
@@ -341,6 +471,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
 {
     StartResult result;
     context.events = xEventGroupCreate();
+    context.voice_response_mutex = xSemaphoreCreateMutex();
     context.voice_audio_stream_state = static_cast<StaticStreamBuffer_t *>(
         heap_caps_calloc(1, sizeof(StaticStreamBuffer_t), MALLOC_CAP_INTERNAL)
     );
@@ -360,9 +491,11 @@ StartResult start(const roomhub::config::EndpointConfig &config)
         );
     }
     context.endpoint_id = config.endpoint_id;
+    roomhub::board::set_tab5_audio_event_callback(send_audio_playback_event);
     context.registration = registration_message(context.endpoint_id);
     if (
         context.events == nullptr
+        || context.voice_response_mutex == nullptr
         || context.voice_audio_stream == nullptr
         || context.registration.empty()
     ) {
@@ -467,6 +600,11 @@ bool start_voice_audio()
         context.events,
         kVoiceAudioReady | kVoiceResponseReady | kVoiceFailed
     );
+    if (xSemaphoreTake(context.voice_response_mutex, pdMS_TO_TICKS(100))
+        == pdTRUE) {
+        context.voice_response = {};
+        xSemaphoreGive(context.voice_response_mutex);
+    }
     const std::string message = voice_audio_message(
         "voice.audio.start",
         context.endpoint_id,
@@ -554,6 +692,19 @@ VoiceResponseState voice_response_state()
         return VoiceResponseState::ready;
     }
     return VoiceResponseState::pending;
+}
+
+VoiceResponse take_voice_response()
+{
+    VoiceResponse response;
+    if (context.voice_response_mutex != nullptr
+        && xSemaphoreTake(context.voice_response_mutex, pdMS_TO_TICKS(100))
+            == pdTRUE) {
+        response = context.voice_response;
+        context.voice_response = {};
+        xSemaphoreGive(context.voice_response_mutex);
+    }
+    return response;
 }
 
 }  // namespace roomhub::transport

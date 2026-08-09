@@ -3,6 +3,7 @@
 #include "roomhub/endpoint_config.hpp"
 #include "roomhub/voice_session.hpp"
 #include "roomhub_transport.hpp"
+#include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
 #include "tab5_wake_word.hpp"
 #include "tab5_wireless.hpp"
@@ -29,7 +30,6 @@ extern "C" void app_main(void)
         "ESP32-C6 power: %s",
         wireless_powered ? "ready" : "failed"
     );
-
     bool endpoint_provisioned = false;
     roomhub::config::EndpointConfig endpoint_config;
     const esp_err_t storage_result = roomhub::config::initialize_storage();
@@ -75,6 +75,14 @@ extern "C" void app_main(void)
         board_result.touch_ready ? "ready" : "failed",
         board_result.microphone_ready ? "ready" : "failed",
         board_result.speaker_ready ? "ready" : "failed"
+    );
+    const bool audio_service_ready = roomhub::board::start_tab5_audio_service(
+        board_result.speaker
+    );
+    ESP_LOGI(
+        kTag,
+        "Central audio service: %s",
+        audio_service_ready ? "ready" : "failed"
     );
 
     if (!endpoint_provisioned && storage_result == ESP_OK) {

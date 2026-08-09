@@ -10,6 +10,7 @@ struct Tab5BringUpResult {
     bool microphone_ready = false;
     bool speaker_ready = false;
     esp_codec_dev_handle_t microphone = nullptr;
+    esp_codec_dev_handle_t speaker = nullptr;
 };
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);

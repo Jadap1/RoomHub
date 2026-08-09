@@ -20,6 +20,10 @@ from .core.registry import registry
 from .handlers.dispatcher import dispatch
 from .integrations.registry import homeassistant
 from .services.voice_audio_service import VoiceAudioConnection
+from .services.audio_command_service import (
+    AudioPlayRequest,
+    audio_command_service,
+)
 
 
 def create_app(
@@ -240,6 +244,14 @@ def create_app(
             "status": "sent",
             "target": endpoint_id
         }
+
+    @app.post("/audio/{endpoint_id}/play")
+    async def play_audio(endpoint_id: str, request: AudioPlayRequest):
+        return await audio_command_service.play(endpoint_id, request)
+
+    @app.post("/audio/{endpoint_id}/stop/{request_id}")
+    async def stop_audio(endpoint_id: str, request_id: str):
+        return await audio_command_service.stop(endpoint_id, request_id)
 
     @app.post("/test/light/{endpoint_id}")
     async def test_light(endpoint_id: str):

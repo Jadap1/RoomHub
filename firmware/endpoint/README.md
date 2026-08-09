@@ -107,6 +107,17 @@ an erased OTA selection partition, ESP-IDF boots `ota_0` on the initial flash.
 - `components/roomhub_voice/test`: ESP-IDF Unity component tests for the
   portable state machine.
 
-The concrete Tab5 AFE adapter is implemented and keeps all pre-wake audio local.
-Network audio transport is deliberately the next milestone, and the portable
-state machine remains independently testable without hardware.
+The concrete Tab5 AFE adapter keeps all pre-wake audio local. After Jarvis is
+detected, the endpoint streams only the command capture to RoomHub, waits for
+the resolved intent, downloads Piper's returned MP3 over HTTP(S), decodes it
+incrementally, and renders the PCM response as 16 kHz mono to match the Tab5's
+shared microphone/speaker I2S clock. The amplifier is enabled only for playback,
+microphone feeding is paused during it, and the AFE buffer is reset afterward
+so the spoken response cannot become a stale wake-word input. The portable
+session state machine remains independently testable without hardware.
+
+All speaker output now passes through the central endpoint audio service.
+Emergency, intercom, voice-assistant, media, and notification requests have
+explicit priorities; higher priorities interrupt lower ones and other requests
+queue in priority order. A wake word cancels lower-priority playback before
+command capture so notification audio cannot be sent to speech recognition.

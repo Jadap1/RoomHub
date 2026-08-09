@@ -3,6 +3,8 @@ from .heartbeat_handler import handle_heartbeat
 from .input_handler import handle_input
 from .voice_handler import handle_voice_transcript
 from ..core.command_router import command_router
+from .audio_handler import handle_audio_status
+from .audio_handler import handle_audio_status
 
 
 async def dispatch(message):
@@ -26,6 +28,14 @@ async def dispatch(message):
     elif message_type == "voice.transcript":
 
         return await handle_voice_transcript(message)
+
+    elif message_type == "audio.status":
+
+        return await handle_audio_status(message)
+
+    elif message_type == "audio.status":
+
+        return await handle_audio_status(message)
 
 
     return {
