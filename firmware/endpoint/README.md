@@ -95,6 +95,23 @@ The prototype does not yet enable NVS encryption. Flash encryption and secure
 boot should be enabled together after the first hardware bring-up, because
 their production settings affect flashing and recovery.
 
+## Firmware signing
+
+OTA images use ESP-IDF Secure Boot v2 RSA signatures in signed-apps-only mode.
+This rejects untrusted network updates without burning eFuses or disabling USB
+recovery. Keep the RSA-3072 private key outside the repository and back it up
+offline. Build normally, then sign the padded application image from an
+activated ESP-IDF terminal:
+
+```text
+.\tools\sign_endpoint_firmware.ps1 -KeyPath D:\secure\roomhub-endpoint.pem -OutputPath build\roomhub_endpoint-signed.bin
+```
+
+The first signed-apps-only bootloader and signed application require one USB
+bootstrap flash. Subsequent OTA images must use the same key. Hardware Secure
+Boot and flash-encryption eFuses remain disabled until a separate production
+lock-down procedure is explicitly approved.
+
 ## Flash layout
 
 The 16 MB flash contains two 4 MB application slots plus OTA selection data,
@@ -110,6 +127,7 @@ an erased OTA selection partition, ESP-IDF boots `ota_0` on the initial flash.
 ## Layout
 
 - `components/roomhub_config`: validated, persistent endpoint configuration.
+- `components/roomhub_firmware`: portable semantic-version upgrade policy.
 - `components/roomhub_recovery`: portable bounded reconnect-backoff policy.
 - `components/roomhub_voice`: portable voice-session state and privacy rules.
 - `main`: endpoint composition and, later, board-profile selection.

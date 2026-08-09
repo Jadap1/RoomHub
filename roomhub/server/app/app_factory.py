@@ -27,6 +27,8 @@ from .services.audio_command_service import (
 )
 from .services.endpoint_assignment_service import endpoint_assignment_service
 from .services.firmware_service import firmware_service
+from .services.firmware_auth import configured_firmware_token, firmware_token_valid
+from .services.firmware_audit import firmware_audit
 from .services.notification_service import NotificationRequest, notification_service
 
 
@@ -149,12 +151,24 @@ def create_app(
     async def publish_endpoint_firmware(
         request: Request,
         x_firmware_version: str = Header(),
+        x_roomhub_admin_token: str | None = Header(default=None),
     ):
+        if configured_firmware_token() is None:
+            raise HTTPException(status_code=503, detail="firmware admin token not configured")
+        if not firmware_token_valid(x_roomhub_admin_token):
+            firmware_audit.record("publish_denied", client=str(request.client))
+            raise HTTPException(status_code=401, detail="invalid firmware admin token")
         image = await request.body()
         try:
             manifest = firmware_service.publish(x_firmware_version, image)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        firmware_audit.record(
+            "published",
+            version=manifest.version,
+            size=manifest.size,
+            sha256=manifest.sha256,
+        )
         return manifest
 
     @app.get("/firmware/endpoint/manifest")
@@ -176,7 +190,20 @@ def create_app(
         )
 
     @app.post("/firmware/endpoint/deploy/{endpoint_id}")
-    async def deploy_endpoint_firmware(endpoint_id: str):
+    async def deploy_endpoint_firmware(
+        endpoint_id: str,
+        request: Request,
+        x_roomhub_admin_token: str | None = Header(default=None),
+    ):
+        if configured_firmware_token() is None:
+            raise HTTPException(status_code=503, detail="firmware admin token not configured")
+        if not firmware_token_valid(x_roomhub_admin_token):
+            firmware_audit.record(
+                "deploy_denied",
+                endpoint_id=endpoint_id,
+                client=str(request.client),
+            )
+            raise HTTPException(status_code=401, detail="invalid firmware admin token")
         endpoint = registry.get(endpoint_id)
         manifest = firmware_service.manifest()
         if endpoint is None or not endpoint.connected:
@@ -195,6 +222,12 @@ def create_app(
                 "path": manifest.path,
             },
         })
+        firmware_audit.record(
+            "deployed",
+            endpoint_id=endpoint_id,
+            version=manifest.version,
+            sha256=manifest.sha256,
+        )
         return {"status": "sent", "target": endpoint_id, "firmware": manifest}
 
     @app.post("/notifications")

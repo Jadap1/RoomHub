@@ -15,6 +15,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mbedtls/sha256.h"
+#include "roomhub/version_policy.hpp"
 #include "tab5_bringup.hpp"
 
 namespace roomhub::ota {
@@ -122,7 +123,16 @@ bool install(const UpdateRequest &request)
         esp_ota_abort(ota_handle);
         return false;
     }
-    if (esp_ota_end(ota_handle) != ESP_OK
+    if (esp_ota_end(ota_handle) != ESP_OK) {
+        return false;
+    }
+    esp_app_desc_t candidate{};
+    if (esp_ota_get_partition_description(partition, &candidate) != ESP_OK
+        || request.version != candidate.version
+        || !roomhub::firmware::is_upgrade(
+            esp_app_get_description()->version,
+            candidate.version
+        )
         || esp_ota_set_boot_partition(partition) != ESP_OK) {
         return false;
     }
@@ -154,13 +164,18 @@ bool start(
     const std::string &expected_sha256
 )
 {
-    if (update_active.exchange(true) || expected_size == 0) {
+    if (update_active.exchange(true) || expected_size == 0
+        || !roomhub::firmware::is_upgrade(
+            esp_app_get_description()->version,
+            version
+        )) {
         return false;
     }
     std::unique_ptr<UpdateRequest> request(new (std::nothrow) UpdateRequest{
         .url = url,
         .version = version,
         .size = expected_size,
+        .sha256 = {},
     });
     if (request == nullptr || !decode_sha256(expected_sha256, request->sha256)) {
         update_active = false;

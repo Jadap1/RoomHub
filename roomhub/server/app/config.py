@@ -1,6 +1,6 @@
 PROJECT_NAME = "RoomHub"
 
-VERSION = "0.1.0"
+VERSION = "0.1.6"
 
 HOST = "0.0.0.0"
 
