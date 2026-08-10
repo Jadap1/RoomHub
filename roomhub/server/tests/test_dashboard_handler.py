@@ -100,6 +100,14 @@ class DashboardHandlerTests(unittest.IsolatedAsyncioTestCase):
             })
             await handle_dashboard_activate({
                 "source": "panel",
+                "payload": {
+                    "entity_id": "light.main",
+                    "action": "brightness_set",
+                    "value": 96,
+                },
+            })
+            await handle_dashboard_activate({
+                "source": "panel",
                 "payload": {"entity_id": "fan.ceiling", "action": "percentage_up"},
             })
             await handle_dashboard_activate({
@@ -112,9 +120,10 @@ class DashboardHandlerTests(unittest.IsolatedAsyncioTestCase):
 
         events = [call.args[0] for call in publish.await_args_list]
         self.assertEqual(events[0].data, {"brightness": 255})
-        self.assertEqual(events[1].data, {"percentage": 100})
-        self.assertEqual(events[2].command, "close_cover")
-        self.assertEqual(events[3].command, "turn_on")
+        self.assertEqual(events[1].data, {"brightness": 96})
+        self.assertEqual(events[2].data, {"percentage": 100})
+        self.assertEqual(events[3].command, "close_cover")
+        self.assertEqual(events[4].command, "turn_on")
 
     async def test_climate_mode_cycles_and_wrong_domain_is_rejected(self):
         climate = Entity(

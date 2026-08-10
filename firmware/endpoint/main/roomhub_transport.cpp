@@ -66,7 +66,7 @@ bool voice_transport_ready();
 cJSON *create_message(const char *type, const std::string &endpoint_id);
 std::string print_message(cJSON *message);
 
-void send_dashboard_action(const char *entity_id, const char *action)
+void send_dashboard_action(const char *entity_id, const char *action, int value)
 {
     if (entity_id == nullptr || context.client == nullptr) {
         return;
@@ -78,6 +78,9 @@ void send_dashboard_action(const char *entity_id, const char *action)
     cJSON *payload = cJSON_AddObjectToObject(message, "payload");
     cJSON_AddStringToObject(payload, "entity_id", entity_id);
     cJSON_AddStringToObject(payload, "action", action == nullptr ? "activate" : action);
+    if (value >= 0) {
+        cJSON_AddNumberToObject(payload, "value", value);
+    }
     if (!send_text(context.client, print_message(message))) {
         ESP_LOGW(kTag, "Could not send dashboard action for %s", entity_id);
     }

@@ -131,7 +131,7 @@ void send_selected_control(lv_event_t *event)
     const char *action = static_cast<const char *>(lv_event_get_user_data(event));
     if (dashboard_action != nullptr && action != nullptr
         && !selected_control_id.empty()) {
-        dashboard_action(selected_control_id.c_str(), action);
+        dashboard_action(selected_control_id.c_str(), action, -1);
     }
 }
 
@@ -155,6 +155,18 @@ void close_control_overlay(lv_event_t *)
     if (control_overlay != nullptr) {
         lv_obj_delete(control_overlay);
         control_overlay = nullptr;
+    }
+}
+
+void send_brightness_slider(lv_event_t *event)
+{
+    lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(event));
+    if (dashboard_action != nullptr && !selected_control_id.empty()) {
+        dashboard_action(
+            selected_control_id.c_str(),
+            "brightness_set",
+            lv_slider_get_value(slider)
+        );
     }
 }
 
@@ -212,9 +224,21 @@ void show_control_overlay(const DashboardEntity &entity)
         LV_FLEX_ALIGN_CENTER
     );
     if (entity.entity_type == "light") {
-        add_control_button(controls, LV_SYMBOL_MINUS, "brightness_down");
+        lv_obj_t *slider = lv_slider_create(controls);
+        lv_obj_set_size(slider, 360, 28);
+        lv_slider_set_range(slider, 1, 255);
+        lv_slider_set_value(
+            slider,
+            entity.has_brightness ? entity.brightness : 128,
+            LV_ANIM_OFF
+        );
+        lv_obj_add_event_cb(
+            slider,
+            send_brightness_slider,
+            LV_EVENT_RELEASED,
+            nullptr
+        );
         add_control_button(controls, LV_SYMBOL_POWER, "activate");
-        add_control_button(controls, LV_SYMBOL_PLUS, "brightness_up");
     } else if (entity.entity_type == "climate") {
         add_control_button(controls, LV_SYMBOL_MINUS, "temperature_down");
         add_control_button(controls, LV_SYMBOL_POWER, "activate");
@@ -251,7 +275,7 @@ void on_dashboard_touch(lv_event_t *event)
             continue;
         }
         if (entity.entity_type == "switch" || entity.entity_type == "scene") {
-            dashboard_action(entity_id, "activate");
+            dashboard_action(entity_id, "activate", -1);
         } else {
             show_control_overlay(entity);
         }
@@ -788,10 +812,6 @@ void show_tab5_dashboard(
         dashboard_entity_ids.push_back(entity.entity_id);
     }
     lv_label_set_text(dashboard_area, area_name.c_str());
-    if (control_overlay != nullptr) {
-        lv_obj_delete(control_overlay);
-        control_overlay = nullptr;
-    }
     render_dashboard_content();
     bsp_display_unlock();
 }

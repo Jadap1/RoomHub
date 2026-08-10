@@ -37,7 +37,7 @@ struct DashboardEntity {
     bool has_current_position = false;
 };
 
-using DashboardAction = void (*)(const char *entity_id, const char *action);
+using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();

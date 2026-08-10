@@ -10,6 +10,7 @@ async def handle_dashboard_activate(message: dict) -> dict:
     payload = message.get("payload") or {}
     entity_id = payload.get("entity_id")
     action = payload.get("action", "activate")
+    value = payload.get("value")
     endpoint = registry.get(endpoint_id) if isinstance(endpoint_id, str) else None
     entity = entity_registry.get(entity_id) if isinstance(entity_id, str) else None
     if (
@@ -27,7 +28,8 @@ async def handle_dashboard_activate(message: dict) -> dict:
 
     if action not in {
         "activate", "temperature_down", "temperature_up", "mode_next",
-        "brightness_down", "brightness_up", "percentage_down", "percentage_up",
+        "brightness_down", "brightness_up", "brightness_set",
+        "percentage_down", "percentage_up",
         "cover_open", "cover_stop", "cover_close",
     }:
         return {
@@ -62,12 +64,17 @@ async def handle_dashboard_activate(message: dict) -> dict:
         target = max(minimum, min(maximum, target))
         command = "set_temperature"
         data = {"temperature": target}
-    elif action in {"brightness_down", "brightness_up"}:
+    elif action in {"brightness_down", "brightness_up", "brightness_set"}:
         if entity.entity_type != "light":
             return _rejected("brightness_action_requires_light")
-        brightness = attributes.get("brightness", 0)
-        brightness = brightness if isinstance(brightness, (int, float)) else 0
-        brightness += 26 if action == "brightness_up" else -26
+        if action == "brightness_set":
+            if not isinstance(value, (int, float)):
+                return _rejected("brightness_value_required")
+            brightness = value
+        else:
+            brightness = attributes.get("brightness", 0)
+            brightness = brightness if isinstance(brightness, (int, float)) else 0
+            brightness += 26 if action == "brightness_up" else -26
         command = "turn_on"
         data = {"brightness": int(max(1, min(255, brightness)))}
     elif action == "mode_next":
