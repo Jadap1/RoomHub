@@ -52,6 +52,35 @@ class RoomDashboardServiceTests(unittest.TestCase):
             "entities": [],
         })
 
+    def test_snapshot_includes_extended_controls_and_compact_attributes(self):
+        entity_types = ("climate", "fan", "cover", "scene", "script")
+        for entity_type in entity_types:
+            entity_id = f"{entity_type}.test"
+            entity_registry.entities[entity_id] = Entity(
+                entity_id=entity_id,
+                entity_type=entity_type,
+                name=entity_type.title(),
+                area_id="kitchen",
+            )
+            entity_registry.states[entity_id] = EntityState(
+                state="on",
+                attributes={
+                    "hvac_modes": ["off", "heat"],
+                    "percentage": 50,
+                    "current_position": 75,
+                    "ignored": "not sent",
+                },
+            )
+
+        snapshot = RoomDashboardService().snapshot("kitchen")
+
+        self.assertEqual(
+            {item["entity_type"] for item in snapshot["entities"]},
+            set(entity_types),
+        )
+        for item in snapshot["entities"]:
+            self.assertNotIn("ignored", item["state"]["attributes"])
+
     def test_snapshot_omits_endpoint_exclusions(self):
         for entity_id in ("light.ceiling", "light.bedside"):
             entity_registry.entities[entity_id] = Entity(

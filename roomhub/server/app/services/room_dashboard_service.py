@@ -5,7 +5,15 @@ from ..core.registry import registry
 from ..events.entity_events import EntityStateChangedEvent
 
 
-SUPPORTED_ENTITY_TYPES = {"light", "switch", "climate"}
+SUPPORTED_ENTITY_TYPES = {
+    "light",
+    "switch",
+    "climate",
+    "fan",
+    "cover",
+    "scene",
+    "script",
+}
 DISPLAY_ATTRIBUTES = {
     "brightness",
     "current_temperature",
@@ -14,6 +22,11 @@ DISPLAY_ATTRIBUTES = {
     "min_temp",
     "target_temp_step",
     "temperature",
+    "hvac_modes",
+    "percentage",
+    "percentage_step",
+    "current_position",
+    "supported_features",
 }
 
 

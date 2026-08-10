@@ -21,11 +21,17 @@ RoomHub stores its runtime database in the app's persistent `/data` directory.
 
 Open **RoomHub** from the Home Assistant sidebar, or select **Open Web UI** on
 the app page. Each registered endpoint has an area selector and visibility
-switches for the lights, switches, and climate entities in that area. Saving
-updates the endpoint immediately. Visibility choices persist across endpoint
-reconnects, app restarts, and temporary assignment to another area.
+switches for the lights, switches, climate devices, fans, covers, scenes, and
+scripts in that area. Saving updates the endpoint immediately. Visibility
+choices persist across endpoint reconnects, app restarts, and temporary
+assignment to another area.
 Entities can also be reordered and marked as favourites. Favourites appear
 first and receive a distinct highlight on compatible endpoint firmware.
+
+Compatible endpoints can toggle lights and switches, adjust light brightness,
+set climate temperature and mode, control fan power and percentage, open, stop,
+and close covers, and activate scenes or scripts. Every command is checked
+against the endpoint's assigned area before it is sent to Home Assistant.
 
 Update, sensor, button, diagnostic, and configuration entities are excluded
 from endpoint dashboards automatically.
