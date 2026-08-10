@@ -91,11 +91,16 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
 }
 
 void render_dashboard_content();
+void show_media_overlay();
 
 void on_dashboard_group(lv_event_t *event)
 {
     const char *group = static_cast<const char *>(lv_event_get_user_data(event));
     if (group == nullptr) {
+        return;
+    }
+    if (std::string(group) == "media") {
+        show_media_overlay();
         return;
     }
     selected_dashboard_group = group;
@@ -290,8 +295,6 @@ void on_dashboard_touch(lv_event_t *event)
         return;
     }
 }
-
-void show_media_overlay();
 
 void close_media_overlay(lv_event_t *)
 {
@@ -614,25 +617,28 @@ void render_dashboard_content()
         lv_obj_add_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(dashboard_pager, LV_OBJ_FLAG_HIDDEN);
         const char *group_ids[] = {
-            "favourites", "light", "switch", "climate", "cover", "actions"
+            "favourites", "light", "switch", "climate", "cover", "actions", "media"
         };
         const char *group_labels[] = {
-            "Favourites", "Lights", "Switches", "Climate", "Covers", "Actions"
+            "Favourites", "Lights", "Switches", "Climate", "Covers", "Actions", "Media"
         };
         const char *group_icons[] = {
             "*", LV_SYMBOL_CHARGE, LV_SYMBOL_POWER, LV_SYMBOL_TINT,
-            LV_SYMBOL_BARS, LV_SYMBOL_PLAY
+            LV_SYMBOL_BARS, LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO
         };
         const uint32_t group_colors[] = {
-            0x8a6b27, 0xa87324, 0x238f83, 0x416b7b, 0x596fa3, 0x75579b
+            0x8a6b27, 0xa87324, 0x238f83, 0x416b7b,
+            0x596fa3, 0x75579b, 0x7b4f78
         };
-        for (std::size_t group_index = 0; group_index < 6; ++group_index) {
+        for (std::size_t group_index = 0; group_index < 7; ++group_index) {
             const auto matching = dashboard_indices_for_group(group_ids[group_index]);
-            if (matching.empty()) {
+            const std::size_t matching_count = std::string(group_ids[group_index]) == "media"
+                ? room_media_players.size() : matching.size();
+            if (matching_count == 0) {
                 continue;
             }
             lv_obj_t *group_button = lv_button_create(dashboard_grid);
-            lv_obj_set_size(group_button, 360, 220);
+            lv_obj_set_size(group_button, 280, 220);
             lv_obj_set_flex_flow(group_button, LV_FLEX_FLOW_COLUMN);
             lv_obj_set_flex_align(
                 group_button,
@@ -654,7 +660,7 @@ void render_dashboard_content()
                 label,
                 "%s  (%u)",
                 group_labels[group_index],
-                static_cast<unsigned int>(matching.size())
+                static_cast<unsigned int>(matching_count)
             );
             lv_obj_add_event_cb(
                 group_button,
