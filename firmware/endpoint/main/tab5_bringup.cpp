@@ -26,11 +26,14 @@ lv_obj_t *dashboard_grid = nullptr;
 lv_obj_t *dashboard_pager = nullptr;
 std::vector<std::string> dashboard_entity_ids;
 std::vector<DashboardEntity> dashboard_entities;
+std::vector<MediaPlayer> room_media_players;
 DashboardAction dashboard_action = nullptr;
 lv_obj_t *control_overlay = nullptr;
 std::string selected_control_id;
 std::string selected_dashboard_group = "home";
 std::size_t selected_dashboard_page = 0;
+lv_obj_t *media_overlay = nullptr;
+std::size_t selected_media_player = 0;
 constexpr std::size_t kDashboardPageSize = 15;
 
 bool entity_matches_group(const DashboardEntity &entity, const std::string &group)
@@ -288,6 +291,204 @@ void on_dashboard_touch(lv_event_t *event)
     }
 }
 
+void show_media_overlay();
+
+void close_media_overlay(lv_event_t *)
+{
+    if (media_overlay != nullptr) {
+        lv_obj_delete(media_overlay);
+        media_overlay = nullptr;
+    }
+}
+
+void send_media_action(lv_event_t *event)
+{
+    const char *action = static_cast<const char *>(lv_event_get_user_data(event));
+    if (dashboard_action == nullptr || action == nullptr
+        || selected_media_player >= room_media_players.size()) {
+        return;
+    }
+    dashboard_action(
+        room_media_players[selected_media_player].entity_id.c_str(),
+        action,
+        -1
+    );
+}
+
+void add_media_button(lv_obj_t *parent, const char *label_text, const char *action)
+{
+    lv_obj_t *button = lv_button_create(parent);
+    lv_obj_set_size(button, 118, 72);
+    lv_obj_t *label = lv_label_create(button);
+    lv_label_set_text(label, label_text);
+    lv_obj_center(label);
+    lv_obj_add_event_cb(
+        button,
+        send_media_action,
+        LV_EVENT_CLICKED,
+        const_cast<char *>(action)
+    );
+}
+
+void send_media_volume(lv_event_t *event)
+{
+    if (dashboard_action == nullptr
+        || selected_media_player >= room_media_players.size()) {
+        return;
+    }
+    lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(event));
+    dashboard_action(
+        room_media_players[selected_media_player].entity_id.c_str(),
+        "media_volume_set",
+        lv_slider_get_value(slider)
+    );
+}
+
+void select_media_player(lv_event_t *event)
+{
+    selected_media_player = reinterpret_cast<std::size_t>(
+        lv_event_get_user_data(event)
+    );
+    if (media_overlay != nullptr) {
+        lv_obj_delete(media_overlay);
+        media_overlay = nullptr;
+    }
+    show_media_overlay();
+}
+
+void show_media_overlay()
+{
+    if (media_overlay != nullptr) {
+        return;
+    }
+    media_overlay = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(media_overlay, 700, 500);
+    lv_obj_center(media_overlay);
+    lv_obj_set_style_bg_color(media_overlay, lv_color_hex(0x172733), 0);
+    lv_obj_set_style_border_color(media_overlay, lv_color_hex(0x75579b), 0);
+    lv_obj_set_style_border_width(media_overlay, 2, 0);
+    lv_obj_set_style_radius(media_overlay, 22, 0);
+    lv_obj_set_flex_flow(media_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        media_overlay,
+        LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+    lv_obj_t *heading = lv_label_create(media_overlay);
+    lv_label_set_text(heading, LV_SYMBOL_AUDIO " Room media");
+    if (room_media_players.empty()) {
+        lv_obj_t *empty = lv_label_create(media_overlay);
+        lv_label_set_text(empty, "No visible media players in this area");
+    } else {
+        if (selected_media_player >= room_media_players.size()) {
+            selected_media_player = 0;
+        }
+        lv_obj_t *players = lv_obj_create(media_overlay);
+        lv_obj_set_size(players, 640, 54);
+        lv_obj_set_style_bg_opa(players, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(players, 0, 0);
+        lv_obj_set_flex_flow(players, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(
+            players,
+            LV_FLEX_ALIGN_CENTER,
+            LV_FLEX_ALIGN_CENTER,
+            LV_FLEX_ALIGN_CENTER
+        );
+        for (std::size_t index = 0; index < room_media_players.size(); ++index) {
+            lv_obj_t *button = lv_button_create(players);
+            lv_obj_set_height(button, 42);
+            lv_obj_set_style_bg_color(
+                button,
+                lv_color_hex(index == selected_media_player ? 0x75579b : 0x34495e),
+                0
+            );
+            lv_obj_t *label = lv_label_create(button);
+            lv_label_set_text(label, room_media_players[index].name.c_str());
+            lv_obj_center(label);
+            lv_obj_add_event_cb(
+                button,
+                select_media_player,
+                LV_EVENT_CLICKED,
+                reinterpret_cast<void *>(index)
+            );
+        }
+        const auto &player = room_media_players[selected_media_player];
+        lv_obj_t *track = lv_label_create(media_overlay);
+        lv_obj_set_width(track, 620);
+        lv_label_set_long_mode(track, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(track, LV_TEXT_ALIGN_CENTER, 0);
+        const std::string title = player.media_title.empty()
+            ? player.state : player.media_title;
+        lv_label_set_text(track, title.c_str());
+        lv_obj_t *artist = lv_label_create(media_overlay);
+        lv_label_set_text(
+            artist,
+            player.media_artist.empty() ? player.source.c_str() : player.media_artist.c_str()
+        );
+        lv_obj_t *transport = lv_obj_create(media_overlay);
+        lv_obj_set_size(transport, 520, 90);
+        lv_obj_set_style_bg_opa(transport, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(transport, 0, 0);
+        lv_obj_set_flex_flow(transport, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(
+            transport,
+            LV_FLEX_ALIGN_SPACE_EVENLY,
+            LV_FLEX_ALIGN_CENTER,
+            LV_FLEX_ALIGN_CENTER
+        );
+        add_media_button(transport, LV_SYMBOL_PREV, "media_previous");
+        add_media_button(
+            transport,
+            player.state == "playing" ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY,
+            "media_play_pause"
+        );
+        add_media_button(transport, LV_SYMBOL_NEXT, "media_next");
+        lv_obj_t *volume_row = lv_obj_create(media_overlay);
+        lv_obj_set_size(volume_row, 600, 55);
+        lv_obj_set_style_bg_opa(volume_row, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(volume_row, 0, 0);
+        lv_obj_set_flex_flow(volume_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(
+            volume_row,
+            LV_FLEX_ALIGN_SPACE_EVENLY,
+            LV_FLEX_ALIGN_CENTER,
+            LV_FLEX_ALIGN_CENTER
+        );
+        lv_obj_t *volume_icon = lv_label_create(volume_row);
+        lv_label_set_text(volume_icon, LV_SYMBOL_VOLUME_MAX);
+        lv_obj_t *volume = lv_slider_create(volume_row);
+        lv_obj_set_size(volume, 410, 24);
+        lv_slider_set_range(volume, 0, 100);
+        lv_slider_set_value(volume, player.volume_percent, LV_ANIM_OFF);
+        lv_obj_add_event_cb(volume, send_media_volume, LV_EVENT_RELEASED, nullptr);
+        lv_obj_t *source = lv_button_create(media_overlay);
+        lv_obj_set_size(source, 260, 48);
+        lv_obj_t *source_label = lv_label_create(source);
+        const std::string source_text = player.source.empty()
+            ? "Next source" : "Source: " + player.source;
+        lv_label_set_text(source_label, source_text.c_str());
+        lv_obj_center(source_label);
+        lv_obj_add_event_cb(
+            source,
+            send_media_action,
+            LV_EVENT_CLICKED,
+            const_cast<char *>("media_source_next")
+        );
+    }
+    lv_obj_t *close = lv_button_create(media_overlay);
+    lv_obj_set_size(close, 160, 50);
+    lv_obj_t *close_label = lv_label_create(close);
+    lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
+    lv_obj_center(close_label);
+    lv_obj_add_event_cb(close, close_media_overlay, LV_EVENT_CLICKED, nullptr);
+}
+
+void on_media_icon(lv_event_t *)
+{
+    show_media_overlay();
+}
+
 void create_status_screen(
     lv_display_t *display,
     const Tab5BringUpResult &result,
@@ -351,6 +552,8 @@ void create_status_screen(
     wake_word_status = lv_label_create(indicators);
     lv_label_set_text(wake_word_status, LV_SYMBOL_AUDIO);
     lv_obj_set_style_text_color(wake_word_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_add_flag(wake_word_status, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(wake_word_status, on_media_icon, LV_EVENT_CLICKED, nullptr);
 
     dashboard_tabs = lv_obj_create(panel);
     lv_obj_set_size(dashboard_tabs, lv_pct(100), 44);
@@ -802,6 +1005,7 @@ void show_tab5_firmware_restarting()
 void show_tab5_dashboard(
     const std::string &area_name,
     const std::vector<DashboardEntity> &entities,
+    const std::vector<MediaPlayer> &media_players,
     DashboardAction action
 )
 {
@@ -810,6 +1014,7 @@ void show_tab5_dashboard(
     }
     dashboard_action = action;
     dashboard_entities = entities;
+    room_media_players = media_players;
     dashboard_entity_ids.clear();
     dashboard_entity_ids.reserve(entities.size());
     for (const auto &entity : entities) {

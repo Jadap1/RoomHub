@@ -94,6 +94,7 @@ void show_dashboard_payload(const cJSON *payload)
     const cJSON *area_name = cJSON_GetObjectItemCaseSensitive(payload, "area_name");
     const cJSON *area_id = cJSON_GetObjectItemCaseSensitive(payload, "area_id");
     const cJSON *items = cJSON_GetObjectItemCaseSensitive(payload, "entities");
+    const cJSON *media_items = cJSON_GetObjectItemCaseSensitive(payload, "media_players");
     if (!cJSON_IsString(area_name) || !cJSON_IsArray(items)) {
         return;
     }
@@ -162,9 +163,47 @@ void show_dashboard_payload(const cJSON *payload)
             .has_current_position = cJSON_IsNumber(current_position) != 0,
         });
     }
+    std::vector<roomhub::board::MediaPlayer> media_players;
+    cJSON_ArrayForEach(item, media_items) {
+        const cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(item, "entity_id");
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
+        const cJSON *state = cJSON_GetObjectItemCaseSensitive(item, "state");
+        const cJSON *state_value = cJSON_IsObject(state)
+            ? cJSON_GetObjectItemCaseSensitive(state, "state") : nullptr;
+        const cJSON *available = cJSON_IsObject(state)
+            ? cJSON_GetObjectItemCaseSensitive(state, "available") : nullptr;
+        const cJSON *attributes = cJSON_IsObject(state)
+            ? cJSON_GetObjectItemCaseSensitive(state, "attributes") : nullptr;
+        const cJSON *title = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "media_title") : nullptr;
+        const cJSON *artist = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "media_artist") : nullptr;
+        const cJSON *source = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "source") : nullptr;
+        const cJSON *volume = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "volume_level") : nullptr;
+        const cJSON *muted = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "is_volume_muted") : nullptr;
+        if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)) {
+            continue;
+        }
+        media_players.push_back({
+            .entity_id = entity_id->valuestring,
+            .name = name->valuestring,
+            .state = cJSON_IsString(state_value) ? state_value->valuestring : "unknown",
+            .media_title = cJSON_IsString(title) ? title->valuestring : "",
+            .media_artist = cJSON_IsString(artist) ? artist->valuestring : "",
+            .source = cJSON_IsString(source) ? source->valuestring : "",
+            .available = available == nullptr || cJSON_IsTrue(available),
+            .muted = cJSON_IsTrue(muted) != 0,
+            .volume_percent = cJSON_IsNumber(volume)
+                ? static_cast<int>(volume->valuedouble * 100.0) : 0,
+        });
+    }
     roomhub::board::show_tab5_dashboard(
         area_name->valuestring,
         entities,
+        media_players,
         send_dashboard_action
     );
 }

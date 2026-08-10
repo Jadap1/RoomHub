@@ -37,6 +37,18 @@ struct DashboardEntity {
     bool has_current_position = false;
 };
 
+struct MediaPlayer {
+    std::string entity_id;
+    std::string name;
+    std::string state;
+    std::string media_title;
+    std::string media_artist;
+    std::string source;
+    bool available = true;
+    bool muted = false;
+    int volume_percent = 0;
+};
+
 using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
@@ -55,6 +67,7 @@ void show_tab5_firmware_restarting();
 void show_tab5_dashboard(
     const std::string &area_name,
     const std::vector<DashboardEntity> &entities,
+    const std::vector<MediaPlayer> &media_players,
     DashboardAction action
 );
 
