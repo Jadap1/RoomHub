@@ -123,6 +123,12 @@ void show_dashboard_payload(const cJSON *payload)
             ? cJSON_GetObjectItemCaseSensitive(attributes, "temperature") : nullptr;
         const cJSON *hvac_action = cJSON_IsObject(attributes)
             ? cJSON_GetObjectItemCaseSensitive(attributes, "hvac_action") : nullptr;
+        const cJSON *brightness = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "brightness") : nullptr;
+        const cJSON *percentage = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "percentage") : nullptr;
+        const cJSON *current_position = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "current_position") : nullptr;
         if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)
             || !cJSON_IsString(entity_type)) {
             continue;
@@ -142,8 +148,15 @@ void show_dashboard_payload(const cJSON *payload)
                 ? static_cast<float>(current_temperature->valuedouble) : 0.0F,
             .target_temperature = cJSON_IsNumber(target_temperature)
                 ? static_cast<float>(target_temperature->valuedouble) : 0.0F,
+            .brightness = cJSON_IsNumber(brightness) ? brightness->valueint : 0,
+            .percentage = cJSON_IsNumber(percentage) ? percentage->valueint : 0,
+            .current_position = cJSON_IsNumber(current_position)
+                ? current_position->valueint : 0,
             .has_current_temperature = cJSON_IsNumber(current_temperature) != 0,
             .has_target_temperature = cJSON_IsNumber(target_temperature) != 0,
+            .has_brightness = cJSON_IsNumber(brightness) != 0,
+            .has_percentage = cJSON_IsNumber(percentage) != 0,
+            .has_current_position = cJSON_IsNumber(current_position) != 0,
         });
     }
     roomhub::board::show_tab5_dashboard(

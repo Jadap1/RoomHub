@@ -27,8 +27,14 @@ struct DashboardEntity {
     bool pinned = false;
     float current_temperature = 0.0F;
     float target_temperature = 0.0F;
+    int brightness = 0;
+    int percentage = 0;
+    int current_position = 0;
     bool has_current_temperature = false;
     bool has_target_temperature = false;
+    bool has_brightness = false;
+    bool has_percentage = false;
+    bool has_current_position = false;
 };
 
 using DashboardAction = void (*)(const char *entity_id, const char *action);

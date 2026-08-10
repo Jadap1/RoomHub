@@ -27,8 +27,8 @@ lv_obj_t *dashboard_pager = nullptr;
 std::vector<std::string> dashboard_entity_ids;
 std::vector<DashboardEntity> dashboard_entities;
 DashboardAction dashboard_action = nullptr;
-lv_obj_t *climate_overlay = nullptr;
-std::string selected_climate_id;
+lv_obj_t *control_overlay = nullptr;
+std::string selected_control_id;
 std::string selected_dashboard_group = "home";
 std::size_t selected_dashboard_page = 0;
 constexpr std::size_t kDashboardPageSize = 15;
@@ -37,6 +37,10 @@ bool entity_matches_group(const DashboardEntity &entity, const std::string &grou
 {
     return group == "all"
         || (group == "favourites" && entity.pinned)
+        || (group == "climate"
+            && (entity.entity_type == "climate" || entity.entity_type == "fan"))
+        || (group == "actions"
+            && (entity.entity_type == "scene" || entity.entity_type == "script"))
         || group == entity.entity_type;
 }
 
@@ -70,6 +74,15 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
             return 0x2878a8;
         }
         return entity.state == "off" ? 0x34495e : 0x416b7b;
+    }
+    if (entity.entity_type == "fan") {
+        return entity.state == "on" ? 0x2878a8 : 0x34495e;
+    }
+    if (entity.entity_type == "cover") {
+        return entity.state == "open" ? 0x596fa3 : 0x34495e;
+    }
+    if (entity.entity_type == "scene" || entity.entity_type == "script") {
+        return 0x75579b;
     }
     return 0x34495e;
 }
@@ -113,6 +126,120 @@ void set_wake_word_status(const char *text, uint32_t color)
     bsp_display_unlock();
 }
 
+void send_selected_control(lv_event_t *event)
+{
+    const char *action = static_cast<const char *>(lv_event_get_user_data(event));
+    if (dashboard_action != nullptr && action != nullptr
+        && !selected_control_id.empty()) {
+        dashboard_action(selected_control_id.c_str(), action);
+    }
+}
+
+void add_control_button(lv_obj_t *parent, const char *label_text, const char *action)
+{
+    lv_obj_t *button = lv_button_create(parent);
+    lv_obj_set_size(button, 118, 80);
+    lv_obj_t *label = lv_label_create(button);
+    lv_label_set_text(label, label_text);
+    lv_obj_center(label);
+    lv_obj_add_event_cb(
+        button,
+        send_selected_control,
+        LV_EVENT_CLICKED,
+        const_cast<char *>(action)
+    );
+}
+
+void close_control_overlay(lv_event_t *)
+{
+    if (control_overlay != nullptr) {
+        lv_obj_delete(control_overlay);
+        control_overlay = nullptr;
+    }
+}
+
+void show_control_overlay(const DashboardEntity &entity)
+{
+    selected_control_id = entity.entity_id;
+    control_overlay = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(control_overlay, 650, 430);
+    lv_obj_center(control_overlay);
+    lv_obj_set_style_bg_color(control_overlay, lv_color_hex(0x172733), 0);
+    lv_obj_set_style_border_color(control_overlay, lv_color_hex(0x2bcbba), 0);
+    lv_obj_set_style_border_width(control_overlay, 2, 0);
+    lv_obj_set_style_radius(control_overlay, 22, 0);
+    lv_obj_set_flex_flow(control_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        control_overlay,
+        LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+
+    lv_obj_t *title = lv_label_create(control_overlay);
+    lv_label_set_text(title, entity.name.c_str());
+    lv_obj_t *detail = lv_label_create(control_overlay);
+    if (entity.entity_type == "climate" && entity.has_current_temperature
+        && entity.has_target_temperature) {
+        lv_label_set_text_fmt(
+            detail,
+            "Current %.1f C    Target %.1f C    Mode %s",
+            entity.current_temperature,
+            entity.target_temperature,
+            entity.state.c_str()
+        );
+    } else if (entity.entity_type == "light" && entity.has_brightness) {
+        lv_label_set_text_fmt(detail, "Brightness %d%%", entity.brightness * 100 / 255);
+    } else if (entity.entity_type == "fan" && entity.has_percentage) {
+        lv_label_set_text_fmt(detail, "Speed %d%%", entity.percentage);
+    } else if (entity.entity_type == "cover" && entity.has_current_position) {
+        lv_label_set_text_fmt(detail, "Position %d%%", entity.current_position);
+    } else if (entity.entity_type == "script") {
+        lv_label_set_text(detail, "Run this action?");
+    } else {
+        lv_label_set_text(detail, entity.state.c_str());
+    }
+
+    lv_obj_t *controls = lv_obj_create(control_overlay);
+    lv_obj_set_size(controls, 590, 110);
+    lv_obj_set_style_bg_opa(controls, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(controls, 0, 0);
+    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(
+        controls,
+        LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+    if (entity.entity_type == "light") {
+        add_control_button(controls, LV_SYMBOL_MINUS, "brightness_down");
+        add_control_button(controls, LV_SYMBOL_POWER, "activate");
+        add_control_button(controls, LV_SYMBOL_PLUS, "brightness_up");
+    } else if (entity.entity_type == "climate") {
+        add_control_button(controls, LV_SYMBOL_MINUS, "temperature_down");
+        add_control_button(controls, LV_SYMBOL_POWER, "activate");
+        add_control_button(controls, "Mode", "mode_next");
+        add_control_button(controls, LV_SYMBOL_PLUS, "temperature_up");
+    } else if (entity.entity_type == "fan") {
+        add_control_button(controls, LV_SYMBOL_MINUS, "percentage_down");
+        add_control_button(controls, LV_SYMBOL_POWER, "activate");
+        add_control_button(controls, LV_SYMBOL_PLUS, "percentage_up");
+    } else if (entity.entity_type == "cover") {
+        add_control_button(controls, LV_SYMBOL_UP " Open", "cover_open");
+        add_control_button(controls, LV_SYMBOL_STOP " Stop", "cover_stop");
+        add_control_button(controls, LV_SYMBOL_DOWN " Close", "cover_close");
+    } else {
+        add_control_button(controls, LV_SYMBOL_PLAY " Run", "activate");
+    }
+
+    lv_obj_t *close = lv_button_create(control_overlay);
+    lv_obj_set_size(close, 180, 64);
+    lv_obj_t *close_label = lv_label_create(close);
+    lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
+    lv_obj_center(close_label);
+    lv_obj_add_event_cb(close, close_control_overlay, LV_EVENT_CLICKED, nullptr);
+}
+
 void on_dashboard_touch(lv_event_t *event)
 {
     const char *entity_id = static_cast<const char *>(lv_event_get_user_data(event));
@@ -120,91 +247,16 @@ void on_dashboard_touch(lv_event_t *event)
         return;
     }
     for (const auto &entity : dashboard_entities) {
-        if (entity.entity_id == entity_id && entity.entity_type == "climate") {
-            selected_climate_id = entity.entity_id;
-            lv_obj_t *screen = lv_screen_active();
-            climate_overlay = lv_obj_create(screen);
-            lv_obj_set_size(climate_overlay, 620, 430);
-            lv_obj_center(climate_overlay);
-            lv_obj_set_style_bg_color(climate_overlay, lv_color_hex(0x172733), 0);
-            lv_obj_set_style_border_color(climate_overlay, lv_color_hex(0x2bcbba), 0);
-            lv_obj_set_style_border_width(climate_overlay, 2, 0);
-            lv_obj_set_style_radius(climate_overlay, 22, 0);
-            lv_obj_set_flex_flow(climate_overlay, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_flex_align(
-                climate_overlay,
-                LV_FLEX_ALIGN_SPACE_EVENLY,
-                LV_FLEX_ALIGN_CENTER,
-                LV_FLEX_ALIGN_CENTER
-            );
-            lv_obj_t *title = lv_label_create(climate_overlay);
-            lv_label_set_text(title, entity.name.c_str());
-            lv_obj_t *temperature = lv_label_create(climate_overlay);
-            if (entity.has_current_temperature && entity.has_target_temperature) {
-                lv_label_set_text_fmt(
-                    temperature,
-                    "Current %.1f C    Target %.1f C",
-                    entity.current_temperature,
-                    entity.target_temperature
-                );
-            } else {
-                lv_label_set_text(temperature, "Temperature unavailable");
-            }
-            lv_obj_t *controls = lv_obj_create(climate_overlay);
-            lv_obj_set_size(controls, 520, 110);
-            lv_obj_set_style_bg_opa(controls, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_border_width(controls, 0, 0);
-            lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(
-                controls,
-                LV_FLEX_ALIGN_SPACE_EVENLY,
-                LV_FLEX_ALIGN_CENTER,
-                LV_FLEX_ALIGN_CENTER
-            );
-            const char *symbols[] = {LV_SYMBOL_MINUS, LV_SYMBOL_POWER, LV_SYMBOL_PLUS};
-            const char *actions[] = {"temperature_down", "activate", "temperature_up"};
-            for (int index = 0; index < 3; ++index) {
-                lv_obj_t *button = lv_button_create(controls);
-                lv_obj_set_size(button, 110, 80);
-                lv_obj_t *label = lv_label_create(button);
-                lv_label_set_text(label, symbols[index]);
-                lv_obj_center(label);
-                lv_obj_add_event_cb(
-                    button,
-                    [](lv_event_t *control_event) {
-                        const char *action = static_cast<const char *>(
-                            lv_event_get_user_data(control_event)
-                        );
-                        if (dashboard_action != nullptr && !selected_climate_id.empty()) {
-                            dashboard_action(selected_climate_id.c_str(), action);
-                        }
-                    },
-                    LV_EVENT_CLICKED,
-                    const_cast<char *>(actions[index])
-                );
-            }
-            lv_obj_t *close = lv_button_create(climate_overlay);
-            lv_obj_set_size(close, 180, 64);
-            lv_obj_t *close_label = lv_label_create(close);
-            lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
-            lv_obj_center(close_label);
-            lv_obj_add_event_cb(
-                close,
-                [](lv_event_t *) {
-                    if (climate_overlay != nullptr) {
-                        lv_obj_delete(climate_overlay);
-                        climate_overlay = nullptr;
-                    }
-                },
-                LV_EVENT_CLICKED,
-                nullptr
-            );
-            return;
+        if (entity.entity_id != entity_id) {
+            continue;
         }
-    }
-    if (dashboard_action != nullptr) {
-        dashboard_action(entity_id, "activate");
-        ESP_LOGI(kTag, "Dashboard action requested for %s", entity_id);
+        if (entity.entity_type == "switch" || entity.entity_type == "scene") {
+            dashboard_action(entity_id, "activate");
+        } else {
+            show_control_overlay(entity);
+        }
+        ESP_LOGI(kTag, "Dashboard control requested for %s", entity_id);
+        return;
     }
 }
 
@@ -330,11 +382,20 @@ void render_dashboard_content()
         selected_dashboard_page = 0;
         lv_obj_add_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(dashboard_pager, LV_OBJ_FLAG_HIDDEN);
-        const char *group_ids[] = {"favourites", "light", "switch", "climate"};
-        const char *group_labels[] = {"Favourites", "Lights", "Switches", "Climate"};
-        const char *group_icons[] = {"*", LV_SYMBOL_CHARGE, LV_SYMBOL_POWER, LV_SYMBOL_TINT};
-        const uint32_t group_colors[] = {0x8a6b27, 0xa87324, 0x238f83, 0x416b7b};
-        for (std::size_t group_index = 0; group_index < 4; ++group_index) {
+        const char *group_ids[] = {
+            "favourites", "light", "switch", "climate", "cover", "actions"
+        };
+        const char *group_labels[] = {
+            "Favourites", "Lights", "Switches", "Climate", "Covers", "Actions"
+        };
+        const char *group_icons[] = {
+            "*", LV_SYMBOL_CHARGE, LV_SYMBOL_POWER, LV_SYMBOL_TINT,
+            LV_SYMBOL_BARS, LV_SYMBOL_PLAY
+        };
+        const uint32_t group_colors[] = {
+            0x8a6b27, 0xa87324, 0x238f83, 0x416b7b, 0x596fa3, 0x75579b
+        };
+        for (std::size_t group_index = 0; group_index < 6; ++group_index) {
             const auto matching = dashboard_indices_for_group(group_ids[group_index]);
             if (matching.empty()) {
                 continue;
@@ -405,7 +466,9 @@ void render_dashboard_content()
     const char *selected_label = selected_dashboard_group == "favourites"
         ? "Favourites"
         : (selected_dashboard_group == "light" ? "Lights"
-            : (selected_dashboard_group == "switch" ? "Switches" : "Climate"));
+            : (selected_dashboard_group == "switch" ? "Switches"
+                : (selected_dashboard_group == "climate" ? "Climate"
+                    : (selected_dashboard_group == "cover" ? "Covers" : "Actions"))));
     lv_obj_t *group_title = lv_label_create(dashboard_tabs);
     lv_obj_set_width(group_title, 220);
     lv_obj_set_style_text_align(group_title, LV_TEXT_ALIGN_CENTER, 0);
@@ -461,6 +524,12 @@ void render_dashboard_content()
             );
         } else if (entity.entity_type == "switch") {
             lv_label_set_text(icon, LV_SYMBOL_POWER);
+        } else if (entity.entity_type == "fan") {
+            lv_label_set_text(icon, LV_SYMBOL_REFRESH);
+        } else if (entity.entity_type == "cover") {
+            lv_label_set_text(icon, LV_SYMBOL_BARS);
+        } else if (entity.entity_type == "scene" || entity.entity_type == "script") {
+            lv_label_set_text(icon, LV_SYMBOL_PLAY);
         } else {
             lv_label_set_text(icon, LV_SYMBOL_CHARGE);
         }
@@ -719,9 +788,9 @@ void show_tab5_dashboard(
         dashboard_entity_ids.push_back(entity.entity_id);
     }
     lv_label_set_text(dashboard_area, area_name.c_str());
-    if (climate_overlay != nullptr) {
-        lv_obj_delete(climate_overlay);
-        climate_overlay = nullptr;
+    if (control_overlay != nullptr) {
+        lv_obj_delete(control_overlay);
+        control_overlay = nullptr;
     }
     render_dashboard_content();
     bsp_display_unlock();
