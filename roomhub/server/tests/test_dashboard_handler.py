@@ -149,6 +149,43 @@ class DashboardHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(publish.await_args.args[0].data, {"hvac_mode": "cool"})
         self.assertEqual(rejected["type"], "command.rejected")
 
+    async def test_media_commands_set_volume_and_cycle_source(self):
+        player = Entity(
+            entity_id="media_player.bedroom",
+            entity_type="media_player",
+            name="Bedroom speaker",
+            area_id="bedroom",
+        )
+        entity_registry.entities[player.entity_id] = player
+        entity_registry.states[player.entity_id] = EntityState(
+            state="playing",
+            attributes={"source": "Music", "source_list": ["Music", "Radio"]},
+        )
+        with patch(
+            "app.handlers.dashboard_handler.event_bus.publish", new=AsyncMock()
+        ) as publish:
+            await handle_dashboard_activate({
+                "source": "panel",
+                "payload": {
+                    "entity_id": player.entity_id,
+                    "action": "media_volume_set",
+                    "value": 35,
+                },
+            })
+            await handle_dashboard_activate({
+                "source": "panel",
+                "payload": {
+                    "entity_id": player.entity_id,
+                    "action": "media_source_next",
+                },
+            })
+
+        events = [call.args[0] for call in publish.await_args_list]
+        self.assertEqual(events[0].command, "volume_set")
+        self.assertEqual(events[0].data, {"volume_level": 0.35})
+        self.assertEqual(events[1].command, "select_source")
+        self.assertEqual(events[1].data, {"source": "Radio"})
+
 
 if __name__ == "__main__":
     unittest.main()

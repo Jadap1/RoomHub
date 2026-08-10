@@ -3,7 +3,7 @@ from contextlib import closing
 from ..core.database import get_connection
 from ..core.entity_registry import entity_registry
 from ..core.registry import registry
-from .room_dashboard_service import SUPPORTED_ENTITY_TYPES, room_dashboard_service
+from .room_dashboard_service import MANAGEABLE_ENTITY_TYPES, room_dashboard_service
 
 
 class EndpointDashboardPreferencesService:
@@ -46,7 +46,7 @@ class EndpointDashboardPreferencesService:
             }
             for entity in entity_registry.entities.values()
             if entity.area_id == endpoint.area_id
-            and entity.entity_type in SUPPORTED_ENTITY_TYPES
+            and entity.entity_type in MANAGEABLE_ENTITY_TYPES
             and entity.entity_category is None
         ]
         default_position = len(preferences)

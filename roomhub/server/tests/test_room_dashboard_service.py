@@ -50,7 +50,35 @@ class RoomDashboardServiceTests(unittest.TestCase):
             "area_id": None,
             "area_name": "Unassigned",
             "entities": [],
+            "media_players": [],
         })
+
+    def test_media_players_are_separate_from_dashboard_entities(self):
+        entity = Entity(
+            entity_id="media_player.bedroom",
+            entity_type="media_player",
+            name="Bedroom speaker",
+            area_id="kitchen",
+        )
+        entity_registry.entities[entity.entity_id] = entity
+        entity_registry.states[entity.entity_id] = EntityState(
+            state="playing",
+            attributes={
+                "media_title": "Test track",
+                "volume_level": 0.35,
+                "source_list": ["Music", "Radio"],
+                "ignored": "not sent",
+            },
+        )
+
+        snapshot = RoomDashboardService().snapshot("kitchen")
+
+        self.assertEqual(snapshot["entities"], [])
+        self.assertEqual(snapshot["media_players"][0]["entity_id"], entity.entity_id)
+        self.assertNotIn(
+            "ignored",
+            snapshot["media_players"][0]["state"]["attributes"],
+        )
 
     def test_snapshot_includes_extended_controls_and_compact_attributes(self):
         entity_types = ("climate", "fan", "cover", "scene", "script")

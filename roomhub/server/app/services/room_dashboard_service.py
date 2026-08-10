@@ -14,6 +14,7 @@ SUPPORTED_ENTITY_TYPES = {
     "scene",
     "script",
 }
+MANAGEABLE_ENTITY_TYPES = SUPPORTED_ENTITY_TYPES | {"media_player"}
 DISPLAY_ATTRIBUTES = {
     "brightness",
     "current_temperature",
@@ -27,6 +28,12 @@ DISPLAY_ATTRIBUTES = {
     "percentage_step",
     "current_position",
     "supported_features",
+    "media_title",
+    "media_artist",
+    "source",
+    "source_list",
+    "volume_level",
+    "is_volume_muted",
 }
 
 
@@ -42,11 +49,12 @@ class RoomDashboardService:
         excluded_entity_ids = excluded_entity_ids or set()
         entity_preferences = entity_preferences or {}
         entities = []
+        media_players = []
         if area is not None:
             for entity in entity_registry.entities.values():
                 if (
                     entity.area_id != area_id
-                    or entity.entity_type not in SUPPORTED_ENTITY_TYPES
+                    or entity.entity_type not in MANAGEABLE_ENTITY_TYPES
                     or entity.entity_category is not None
                     or entity.entity_id in excluded_entity_ids
                 ):
@@ -63,7 +71,7 @@ class RoomDashboardService:
                             if key in DISPLAY_ATTRIBUTES
                         },
                     }
-                entities.append({
+                item = {
                     "entity_id": entity.entity_id,
                     "entity_type": entity.entity_type,
                     "name": entity.name,
@@ -72,7 +80,11 @@ class RoomDashboardService:
                         entity.entity_id, {}
                     ).get("pinned", False),
                     "state": compact_state,
-                })
+                }
+                if entity.entity_type == "media_player":
+                    media_players.append(item)
+                else:
+                    entities.append(item)
         default_position = len(entity_preferences)
         entities.sort(key=lambda item: (
             not item["pinned"],
@@ -82,10 +94,12 @@ class RoomDashboardService:
             item["entity_type"],
             item["name"].casefold(),
         ))
+        media_players.sort(key=lambda item: item["name"].casefold())
         return {
             "area_id": area_id,
             "area_name": area.name if area is not None else "Unassigned",
             "entities": entities[:maximum_entities],
+            "media_players": media_players[:8],
         }
 
     @staticmethod

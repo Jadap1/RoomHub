@@ -2,7 +2,7 @@ from ..core.entity_registry import entity_registry
 from ..core.event_bus import event_bus
 from ..core.registry import registry
 from ..events.entity_events import EntityCommandEvent
-from ..services.room_dashboard_service import SUPPORTED_ENTITY_TYPES
+from ..services.room_dashboard_service import MANAGEABLE_ENTITY_TYPES
 
 
 async def handle_dashboard_activate(message: dict) -> dict:
@@ -18,7 +18,7 @@ async def handle_dashboard_activate(message: dict) -> dict:
         or entity is None
         or endpoint.area_id is None
         or entity.area_id != endpoint.area_id
-        or entity.entity_type not in SUPPORTED_ENTITY_TYPES
+        or entity.entity_type not in MANAGEABLE_ENTITY_TYPES
     ):
         return {
             "version": "1.0",
@@ -31,6 +31,8 @@ async def handle_dashboard_activate(message: dict) -> dict:
         "brightness_down", "brightness_up", "brightness_set",
         "percentage_down", "percentage_up",
         "cover_open", "cover_stop", "cover_close",
+        "media_play_pause", "media_previous", "media_next",
+        "media_volume_set", "media_source_next",
     }:
         return {
             "version": "1.0",
@@ -106,6 +108,32 @@ async def handle_dashboard_activate(message: dict) -> dict:
             "cover_stop": "stop_cover",
             "cover_close": "close_cover",
         }[action]
+    elif action.startswith("media_"):
+        if entity.entity_type != "media_player":
+            return _rejected("media_action_requires_media_player")
+        if action == "media_play_pause":
+            command = "media_play_pause"
+        elif action == "media_previous":
+            command = "media_previous_track"
+        elif action == "media_next":
+            command = "media_next_track"
+        elif action == "media_volume_set":
+            if not isinstance(value, (int, float)):
+                return _rejected("media_volume_value_required")
+            command = "volume_set"
+            data = {"volume_level": max(0.0, min(1.0, value / 100.0))}
+        else:
+            sources = attributes.get("source_list") or []
+            sources = [source for source in sources if isinstance(source, str)]
+            if not sources:
+                return _rejected("media_sources_unavailable")
+            current_source = attributes.get("source")
+            next_index = (
+                (sources.index(current_source) + 1) % len(sources)
+                if current_source in sources else 0
+            )
+            command = "select_source"
+            data = {"source": sources[next_index]}
     elif entity.entity_type == "climate":
         command = "turn_on" if state.get("state") == "off" else "turn_off"
     elif entity.entity_type in {"scene", "script"}:
