@@ -195,10 +195,9 @@ void show_control_overlay(const DashboardEntity &entity)
         && entity.has_target_temperature) {
         lv_label_set_text_fmt(
             detail,
-            "Current %.1f C    Target %.1f C    Mode %s",
+            "Current %.1f C    Target %.1f C",
             entity.current_temperature,
-            entity.target_temperature,
-            entity.state.c_str()
+            entity.target_temperature
         );
     } else if (entity.entity_type == "light" && entity.has_brightness) {
         lv_label_set_text_fmt(detail, "Brightness %d%%", entity.brightness * 100 / 255);
@@ -210,6 +209,11 @@ void show_control_overlay(const DashboardEntity &entity)
         lv_label_set_text(detail, "Run this action?");
     } else {
         lv_label_set_text(detail, entity.state.c_str());
+    }
+    if (entity.entity_type == "climate") {
+        lv_obj_t *mode = lv_label_create(control_overlay);
+        const std::string mode_text = "Mode: " + entity.state;
+        lv_label_set_text(mode, mode_text.c_str());
     }
 
     lv_obj_t *controls = lv_obj_create(control_overlay);
