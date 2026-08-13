@@ -33,6 +33,7 @@ from .services.endpoint_dashboard_preferences_service import (
 from .services.firmware_service import firmware_service
 from .services.firmware_auth import configured_firmware_token, firmware_token_valid
 from .services.firmware_audit import firmware_audit
+from .services.firmware_deployment_service import firmware_deployment_service
 from .services.notification_service import NotificationRequest, notification_service
 
 
@@ -166,6 +167,7 @@ def create_app(
                         endpoint_id
                     )
                 ),
+                "firmware_deployment": firmware_deployment_service.get(endpoint_id),
             })
         endpoints.sort(key=lambda item: item["device_name"].casefold())
         return {
@@ -279,25 +281,15 @@ def create_app(
             raise HTTPException(status_code=409, detail="endpoint not connected")
         if manifest is None:
             raise HTTPException(status_code=404, detail="firmware not published")
-        await manager.send(endpoint_id, {
-            "version": "1.0",
-            "type": "firmware.update",
-            "source": "roomhub-core",
-            "target": endpoint_id,
-            "payload": {
-                "version": manifest.version,
-                "size": manifest.size,
-                "sha256": manifest.sha256,
-                "path": manifest.path,
-            },
-        })
-        firmware_audit.record(
-            "deployed",
-            endpoint_id=endpoint_id,
-            version=manifest.version,
-            sha256=manifest.sha256,
-        )
-        return {"status": "sent", "target": endpoint_id, "firmware": manifest}
+        try:
+            deployment = await firmware_deployment_service.deploy(endpoint_id, manifest)
+        except ConnectionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {"status": "sent", "target": endpoint_id, "firmware": manifest, "deployment": deployment}
+
+    @app.get("/firmware/endpoint/deploy/{endpoint_id}")
+    async def endpoint_firmware_deployment(endpoint_id: str):
+        return firmware_deployment_service.get(endpoint_id) or {"status": "none"}
 
     @app.post("/notifications")
     async def create_notification(request: NotificationRequest):
@@ -347,6 +339,10 @@ def create_app(
                         websocket
                     )
                     response = await dispatch(message)
+                    firmware_deployment_service.mark_running(
+                        endpoint_id,
+                        message.get("payload", {}).get("firmware_version"),
+                    )
                 elif (
                     isinstance(message_type, str)
                     and message_type.startswith("voice.audio.")
@@ -389,6 +385,12 @@ def create_app(
                 else:
                     response = await dispatch(message)
                 await websocket.send_json(response)
+                if message_type == "endpoint.register" and endpoint_id is not None:
+                    await firmware_deployment_service.retry_after_registration(
+                        endpoint_id,
+                        message.get("payload", {}).get("firmware_version"),
+                        firmware_service.manifest(),
+                    )
         except WebSocketDisconnect:
             pass
         finally:

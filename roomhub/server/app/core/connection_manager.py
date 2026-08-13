@@ -46,8 +46,14 @@ class ConnectionManager:
 
         websocket = self.get(endpoint_id)
 
-        if websocket:
+        if not websocket:
+            return False
+        try:
             await websocket.send_json(message)
+            return True
+        except Exception:
+            self.disconnect(endpoint_id, websocket)
+            return False
 
 
 manager = ConnectionManager()

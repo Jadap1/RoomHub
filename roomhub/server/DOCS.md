@@ -17,6 +17,11 @@ access token needs to be copied into its configuration.
 
 RoomHub stores its runtime database in the app's persistent `/data` directory.
 
+Endpoint firmware deployments use request IDs and endpoint acknowledgements.
+The management page shows sent, accepted, download progress, restarting,
+completed, unacknowledged, or failed state. Unacknowledged and failed updates
+are retried after a fresh endpoint registration, up to three attempts.
+
 ## Endpoint management
 
 Open **RoomHub** from the Home Assistant sidebar, or select **Open Web UI** on

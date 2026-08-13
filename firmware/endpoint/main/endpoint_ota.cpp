@@ -26,11 +26,22 @@ constexpr std::size_t kBufferBytes = 8192;
 std::atomic_bool update_active{false};
 
 struct UpdateRequest {
+    std::string request_id;
     std::string url;
     std::string version;
     std::size_t size;
     std::uint8_t sha256[32];
+    StatusCallback status_callback;
 };
+
+void report(const UpdateRequest &request, const char *status, unsigned int progress, const char *reason = nullptr)
+{
+    if (request.status_callback != nullptr) {
+        request.status_callback(
+            request.request_id, request.version, status, progress, reason
+        );
+    }
+}
 
 bool decode_sha256(const std::string &encoded, std::uint8_t output[32])
 {
@@ -132,6 +143,7 @@ bool install(const UpdateRequest &request)
         roomhub::board::show_tab5_firmware_updating(
             static_cast<unsigned int>((received * 100) / request.size)
         );
+        report(request, "downloading", static_cast<unsigned int>((received * 100) / request.size));
     }
     std::uint8_t digest[32]{};
     mbedtls_sha256_finish(&sha, digest);
@@ -175,12 +187,14 @@ void update_task(void *argument)
     std::unique_ptr<UpdateRequest> request(static_cast<UpdateRequest *>(argument));
     ESP_LOGI(kTag, "Installing endpoint firmware %s", request->version.c_str());
     if (install(*request)) {
+        report(*request, "restarting", 100);
         roomhub::board::show_tab5_firmware_restarting();
         ESP_LOGI(kTag, "Firmware verified; restarting into %s", request->version.c_str());
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_restart();
     }
     ESP_LOGE(kTag, "Firmware update rejected; running image preserved");
+    report(*request, "failed", 0, "install_failed");
     roomhub::board::show_tab5_firmware_failed();
     update_active = false;
     vTaskDelete(nullptr);
@@ -189,10 +203,12 @@ void update_task(void *argument)
 }  // namespace
 
 bool start(
+    const std::string &request_id,
     const std::string &url,
     const std::string &version,
     std::size_t expected_size,
-    const std::string &expected_sha256
+    const std::string &expected_sha256,
+    StatusCallback status_callback
 )
 {
     if (update_active.exchange(true) || expected_size == 0
@@ -203,16 +219,19 @@ bool start(
         return false;
     }
     std::unique_ptr<UpdateRequest> request(new (std::nothrow) UpdateRequest{
+        .request_id = request_id,
         .url = url,
         .version = version,
         .size = expected_size,
         .sha256 = {},
+        .status_callback = status_callback,
     });
     if (request == nullptr || !decode_sha256(expected_sha256, request->sha256)) {
         update_active = false;
         return false;
     }
     UpdateRequest *task_request = request.release();
+    report(*task_request, "accepted", 0);
     if (xTaskCreate(update_task, "endpoint_ota", 8192, task_request, 5, nullptr) != pdPASS) {
         delete task_request;
         update_active = false;

@@ -86,6 +86,26 @@ void send_dashboard_action(const char *entity_id, const char *action, int value)
     }
 }
 
+void send_firmware_status(
+    const std::string &request_id,
+    const std::string &version,
+    const char *status,
+    unsigned int progress,
+    const char *reason
+)
+{
+    if (context.client == nullptr) return;
+    cJSON *message = create_message("firmware.status", context.endpoint_id);
+    if (message == nullptr) return;
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(payload, "request_id", request_id.c_str());
+    cJSON_AddStringToObject(payload, "version", version.c_str());
+    cJSON_AddStringToObject(payload, "status", status);
+    cJSON_AddNumberToObject(payload, "progress", progress);
+    if (reason != nullptr) cJSON_AddStringToObject(payload, "reason", reason);
+    send_text(context.client, print_message(message));
+}
+
 void show_dashboard_payload(const cJSON *payload)
 {
     if (!cJSON_IsObject(payload)) {
@@ -427,7 +447,8 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             cJSON *path = cJSON_GetObjectItemCaseSensitive(payload, "path");
             cJSON *sha256 = cJSON_GetObjectItemCaseSensitive(payload, "sha256");
             cJSON *size = cJSON_GetObjectItemCaseSensitive(payload, "size");
-            if (cJSON_IsString(version) && cJSON_IsString(path)
+            cJSON *request_id = cJSON_GetObjectItemCaseSensitive(payload, "request_id");
+            if (cJSON_IsString(request_id) && cJSON_IsString(version) && cJSON_IsString(path)
                 && cJSON_IsString(sha256) && cJSON_IsNumber(size)
                 && size->valuedouble > 0) {
                 std::string base = transport.roomhub_url;
@@ -440,11 +461,17 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                 transport.voice_cancel_pending = true;
                 xEventGroupClearBits(transport.events, kVoiceAudioReady);
                 if (!roomhub::ota::start(
+                    request_id->valuestring,
                     url,
                     version->valuestring,
                     static_cast<std::size_t>(size->valuedouble),
-                    sha256->valuestring
+                    sha256->valuestring,
+                    send_firmware_status
                 )) {
+                    send_firmware_status(
+                        request_id->valuestring, version->valuestring,
+                        "failed", 0, "command_rejected"
+                    );
                     roomhub::board::show_tab5_firmware_failed();
                     ESP_LOGW(kTag, "Firmware update command rejected");
                 }
