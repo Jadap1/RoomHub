@@ -225,3 +225,11 @@ Direction: Endpoint to Core
 Reports `accepted`, `rejected`, `playing`, `completed`, `interrupted`,
 `failed`, `stopped`, or `not_found` for an audio request. Core responds with
 `audio.status.ack` so delivery is visible on both sides of the connection.
+# Endpoint controls
+
+RoomHub sends `endpoint.control` to a connected endpoint with a unique
+`request_id` and one or both of `screen_on` (boolean) and `volume` (integer
+0–100). The endpoint applies only these bounded controls and responds with
+`endpoint.control.status`, including the request ID, `applied` or `rejected`,
+and its resulting screen and volume state. Heartbeats repeat this state under
+`payload.controls` so controllers do not rely on optimistic updates.

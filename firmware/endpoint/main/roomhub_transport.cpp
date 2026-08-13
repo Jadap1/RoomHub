@@ -65,6 +65,7 @@ struct TransportContext {
 };
 
 TransportContext context;
+std::atomic_bool screen_on{true};
 
 bool send_text(
     esp_websocket_client_handle_t client,
@@ -375,6 +376,11 @@ std::string heartbeat_message(
         network_audio_allowed ? "capturing_command" : "waiting_for_wake_word"
     );
     cJSON_AddBoolToObject(payload, "network_audio_allowed", network_audio_allowed);
+    cJSON *controls = cJSON_AddObjectToObject(payload, "controls");
+    cJSON_AddBoolToObject(controls, "screen_on", screen_on.load());
+    cJSON_AddNumberToObject(
+        controls, "volume", roomhub::board::tab5_output_volume()
+    );
     return print_message(message);
 }
 
@@ -410,6 +416,22 @@ std::string audio_status_message(
     cJSON *payload = cJSON_AddObjectToObject(message, "payload");
     cJSON_AddStringToObject(payload, "request_id", request_id);
     cJSON_AddStringToObject(payload, "status", status);
+    return print_message(message);
+}
+
+std::string endpoint_control_status_message(
+    const std::string &endpoint_id,
+    const char *request_id,
+    const char *status
+)
+{
+    cJSON *message = create_message("endpoint.control.status", endpoint_id);
+    if (message == nullptr) return {};
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(payload, "request_id", request_id);
+    cJSON_AddStringToObject(payload, "status", status);
+    cJSON_AddBoolToObject(payload, "screen_on", screen_on.load());
+    cJSON_AddNumberToObject(payload, "volume", roomhub::board::tab5_output_volume());
     return print_message(message);
 }
 
@@ -540,6 +562,37 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                     buttons, send_notification_status, send_notification_action
                 );
             }
+        } else if (message_type == "endpoint.control") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            const cJSON *request_id = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "request_id") : nullptr;
+            const cJSON *requested_screen = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "screen_on") : nullptr;
+            const cJSON *requested_volume = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "volume") : nullptr;
+            bool valid = cJSON_IsString(request_id) && request_id->valuestring
+                && (cJSON_IsBool(requested_screen) || cJSON_IsNumber(requested_volume));
+            bool applied = valid;
+            if (valid && cJSON_IsBool(requested_screen)) {
+                const bool value = cJSON_IsTrue(requested_screen) != 0;
+                applied = roomhub::board::set_tab5_screen_on(value) && applied;
+                if (applied) screen_on = value;
+            }
+            if (valid && cJSON_IsNumber(requested_volume)) {
+                if (requested_volume->valueint < 0 || requested_volume->valueint > 100) {
+                    applied = false;
+                } else {
+                    roomhub::board::set_tab5_output_volume(requested_volume->valueint);
+                }
+            }
+            send_text(
+                transport.client,
+                endpoint_control_status_message(
+                    transport.endpoint_id,
+                    cJSON_IsString(request_id) ? request_id->valuestring : "invalid",
+                    applied ? "applied" : "rejected"
+                )
+            );
         } else if (message_type == "firmware.update") {
             cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             cJSON *version = cJSON_GetObjectItemCaseSensitive(payload, "version");

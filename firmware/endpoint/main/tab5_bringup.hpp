@@ -79,6 +79,7 @@ void show_tab5_roomhub_registered();
 void show_tab5_firmware_updating(unsigned int percent);
 void show_tab5_firmware_failed();
 void show_tab5_firmware_restarting();
+bool set_tab5_screen_on(bool screen_on);
 void show_tab5_dashboard(
     const std::string &area_name,
     const std::vector<DashboardEntity> &entities,

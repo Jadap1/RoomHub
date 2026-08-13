@@ -7,6 +7,8 @@ from .audio_handler import handle_audio_status
 from .dashboard_handler import handle_dashboard_activate
 from .firmware_handler import handle_firmware_status
 from ..services.notification_service import notification_service
+from .endpoint_control_handler import handle_endpoint_control_status
+from .endpoint_control_handler import handle_endpoint_control_status
 
 
 async def dispatch(message):
@@ -42,6 +44,14 @@ async def dispatch(message):
     elif message_type == "firmware.status":
 
         return await handle_firmware_status(message)
+
+    elif message_type == "endpoint.control.status":
+
+        return await handle_endpoint_control_status(message)
+
+    elif message_type == "endpoint.control.status":
+
+        return await handle_endpoint_control_status(message)
 
     elif message_type in {"notification.dismissed", "notification.status"}:
 

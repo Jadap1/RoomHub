@@ -1076,6 +1076,15 @@ void show_tab5_firmware_restarting()
     bsp_display_unlock();
 }
 
+bool set_tab5_screen_on(bool screen_on)
+{
+    const esp_err_t result = bsp_display_brightness_set(screen_on ? 35 : 0);
+    if (result != ESP_OK) {
+        ESP_LOGW(kTag, "Could not set display power: %s", esp_err_to_name(result));
+    }
+    return result == ESP_OK;
+}
+
 void show_tab5_dashboard(
     const std::string &area_name,
     const std::vector<DashboardEntity> &entities,

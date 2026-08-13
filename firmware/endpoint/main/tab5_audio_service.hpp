@@ -28,5 +28,7 @@ bool cancel_tab5_audio(const std::string &request_id);
 AudioPlaybackState tab5_audio_state(std::uint32_t token);
 bool tab5_audio_output_active();
 void interrupt_tab5_audio_for_voice_capture();
+void set_tab5_output_volume(int volume);
+int tab5_output_volume();
 
 }  // namespace roomhub::board

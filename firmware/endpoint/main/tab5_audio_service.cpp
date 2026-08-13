@@ -1,6 +1,7 @@
 #include "tab5_audio_service.hpp"
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 
 #include "esp_log.h"
@@ -33,6 +34,7 @@ std::atomic_uint32_t playing_token{0};
 std::atomic_uint32_t playing_priority{0};
 std::atomic_bool cancel_requested{false};
 std::atomic_bool service_started{false};
+std::atomic_int output_volume{65};
 AudioEventCallback event_callback = nullptr;
 
 Record *find_record(std::uint32_t token)
@@ -91,8 +93,7 @@ void audio_service_task(void *)
             speaker_handle,
             request.url,
             &cancel_requested,
-            request.priority == roomhub::audio::Priority::notification
-                ? 35 : 65
+            output_volume.load()
         );
         if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
             if (auto *record = find_record(request.token)) {
@@ -125,6 +126,16 @@ void audio_service_task(void *)
 void set_tab5_audio_event_callback(AudioEventCallback callback)
 {
     event_callback = callback;
+}
+
+void set_tab5_output_volume(int volume)
+{
+    output_volume = std::clamp(volume, 0, 100);
+}
+
+int tab5_output_volume()
+{
+    return output_volume.load();
 }
 
 bool start_tab5_audio_service(esp_codec_dev_handle_t speaker)

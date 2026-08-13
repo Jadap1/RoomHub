@@ -35,6 +35,10 @@ from .services.firmware_auth import configured_firmware_token, firmware_token_va
 from .services.firmware_audit import firmware_audit
 from .services.firmware_deployment_service import firmware_deployment_service
 from .services.notification_service import NotificationRequest, notification_service
+from .services.endpoint_control_service import (
+    EndpointControlRequest,
+    endpoint_control_service,
+)
 
 
 class EndpointManagementUpdate(BaseModel):
@@ -146,6 +150,15 @@ def create_app(
     @app.get("/endpoints")
     async def endpoints():
         return registry.get_all()
+
+    @app.put("/api/endpoints/{endpoint_id}/controls")
+    async def control_endpoint(endpoint_id: str, request: EndpointControlRequest):
+        result = await endpoint_control_service.apply(endpoint_id, request)
+        if result["status"] == "not_found":
+            raise HTTPException(status_code=404, detail="endpoint not found")
+        if result["status"] == "unavailable":
+            raise HTTPException(status_code=409, detail="endpoint unavailable")
+        return result
 
     @app.get("/", response_class=HTMLResponse)
     @app.get("//", response_class=HTMLResponse)

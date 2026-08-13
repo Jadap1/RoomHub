@@ -60,3 +60,9 @@ the RoomHub database and are restored when endpoints reconnect.
 An optional `actions` list of no more than two `{label, entity_id}` objects adds
 buttons to the alert. Only `script.*` and `scene.*` entities are accepted, and
 each tap is checked against the original delivery and endpoint before execution.
+# Endpoint controls
+
+`PUT /api/endpoints/{endpoint_id}/controls` accepts `screen_on` and/or `volume`
+(0–100). RoomHub sends the command only to the named connected endpoint. The
+endpoint acknowledges the applied values and repeats them in its heartbeat;
+they are exposed in the endpoint `state.controls` object.
