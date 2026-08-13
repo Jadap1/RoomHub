@@ -10,6 +10,10 @@ from app.services.firmware_service import FirmwareManifest
 
 class FirmwareDeploymentServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        self.audit_patch = patch(
+            "app.services.firmware_deployment_service.firmware_audit.record"
+        )
+        self.audit_patch.start()
         registry.endpoints = {
             "panel": Endpoint(
                 device_id="panel", device_name="Panel", firmware_version="0.7.1",
@@ -18,6 +22,7 @@ class FirmwareDeploymentServiceTests(unittest.IsolatedAsyncioTestCase):
         }
 
     def tearDown(self):
+        self.audit_patch.stop()
         registry.endpoints = {}
 
     async def test_tracks_acknowledgement_progress_and_completion(self):
