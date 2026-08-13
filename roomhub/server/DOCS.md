@@ -46,9 +46,12 @@ from endpoint dashboards automatically.
 ## Home Assistant notification action
 
 The app publishes `POST /notifications` on port `8000`. Home Assistant
-automations can invoke it with a `rest_command` using `text` plus exactly one of
+automations can invoke it with a `rest_command` using `text`, an optional
+`title`, plus exactly one of
 `area_id` or `endpoint_id`. RoomHub asks the configured Assist pipeline to
-synthesize Piper speech, routes it only to connected endpoints with the
-`speaker` capability, and records per-endpoint delivery state. Assign endpoint
+synthesize Piper speech for speakers and shows a dismissible overlay on
+displays. Normal notifications use the RoomHub accent colour; `emergency`
+priority uses a red treatment and the existing emergency audio priority. It
+records per-endpoint delivery state, including display dismissal. Assign endpoint
 areas with `PUT /endpoints/{endpoint_id}/area/{area_id}`; assignments persist in
 the RoomHub database and are restored when endpoints reconnect.

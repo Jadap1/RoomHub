@@ -94,6 +94,16 @@ void send_dashboard_action(const char *entity_id, const char *action, int value)
     }
 }
 
+void send_notification_dismissed(const char *delivery_id)
+{
+    if (delivery_id == nullptr || context.client == nullptr) return;
+    cJSON *message = create_message("notification.dismissed", context.endpoint_id);
+    if (message == nullptr) return;
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(payload, "delivery_id", delivery_id);
+    send_text(context.client, print_message(message));
+}
+
 void send_firmware_status(
     const std::string &request_id,
     const std::string &version,
@@ -478,6 +488,24 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             );
         } else if (message_type == "room.dashboard") {
             show_dashboard_payload(cJSON_GetObjectItemCaseSensitive(message, "payload"));
+        } else if (message_type == "notification.show") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            const cJSON *delivery_id = cJSON_GetObjectItemCaseSensitive(payload, "delivery_id");
+            const cJSON *title = cJSON_GetObjectItemCaseSensitive(payload, "title");
+            const cJSON *text = cJSON_GetObjectItemCaseSensitive(payload, "text");
+            const cJSON *priority = cJSON_GetObjectItemCaseSensitive(payload, "priority");
+            if (cJSON_IsString(delivery_id) && delivery_id->valuestring
+                && cJSON_IsString(title) && title->valuestring
+                && cJSON_IsString(text) && text->valuestring) {
+                roomhub::board::show_tab5_notification(
+                    delivery_id->valuestring,
+                    title->valuestring,
+                    text->valuestring,
+                    cJSON_IsString(priority) && priority->valuestring
+                        && std::string(priority->valuestring) == "emergency",
+                    send_notification_dismissed
+                );
+            }
         } else if (message_type == "firmware.update") {
             cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             cJSON *version = cJSON_GetObjectItemCaseSensitive(payload, "version");

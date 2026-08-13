@@ -30,7 +30,7 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         area_registry.areas = {}
         area_registry.areas = {}
 
-    async def test_routes_area_notification_only_to_connected_speakers(self):
+    async def test_routes_area_notification_to_displays_and_connected_speakers(self):
         registry.register(Endpoint(
             device_id="kitchen-panel",
             device_name="Kitchen Panel",
@@ -59,14 +59,24 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         with patch(
             "app.services.notification_service.audio_command_service.play",
             new=AsyncMock(return_value={"status": "sent"}),
-        ) as play:
+        ) as play, patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ) as send:
             result = await service.notify(NotificationRequest(
                 text="Dinner is ready",
+                title="Dinner",
                 area_id="kitchen",
             ))
-        self.assertEqual(set(result["targets"]), {"kitchen-panel"})
+        self.assertEqual(
+            set(result["targets"]), {"kitchen-panel", "kitchen-display"}
+        )
         self.assertEqual(play.await_args.args[0], "kitchen-panel")
         self.assertEqual(play.await_args.args[1].priority, "notification")
+        self.assertEqual(send.await_args.args[0], "kitchen-display")
+        self.assertEqual(
+            send.await_args.args[1]["payload"]["title"], "Dinner"
+        )
 
     async def test_delivery_status_tracks_each_endpoint(self):
         registry.register(Endpoint(
@@ -91,6 +101,11 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service.get(delivery_id)["status"], "playing")
         service.update_status(delivery_id, "panel", "completed")
         self.assertEqual(service.get(delivery_id)["status"], "completed")
+
+    def test_title_validation(self):
+        self.assertEqual(NotificationRequest(text="Test", endpoint_id="panel").title, "RoomHub")
+        with self.assertRaises(ValueError):
+            NotificationRequest(text="Test", title=" ", endpoint_id="panel")
 
     async def test_unavailable_target_does_not_synthesize(self):
         tts = AsyncMock()

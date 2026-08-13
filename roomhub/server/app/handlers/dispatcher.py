@@ -6,6 +6,7 @@ from ..core.command_router import command_router
 from .audio_handler import handle_audio_status
 from .dashboard_handler import handle_dashboard_activate
 from .firmware_handler import handle_firmware_status
+from ..services.notification_service import notification_service
 
 
 async def dispatch(message):
@@ -41,6 +42,14 @@ async def dispatch(message):
     elif message_type == "firmware.status":
 
         return await handle_firmware_status(message)
+
+    elif message_type == "notification.dismissed":
+
+        payload = message.get("payload", {})
+        notification_service.update_status(
+            payload.get("delivery_id"), message.get("source"), "dismissed"
+        )
+        return {"status": "dismissed"}
 
     elif message_type in command_router.commands:
 

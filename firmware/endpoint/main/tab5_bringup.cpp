@@ -33,6 +33,9 @@ std::string selected_control_id;
 std::string selected_dashboard_group = "home";
 std::size_t selected_dashboard_page = 0;
 lv_obj_t *media_overlay = nullptr;
+lv_obj_t *notification_overlay = nullptr;
+std::string notification_delivery_id;
+NotificationAction notification_action = nullptr;
 std::size_t selected_media_player = 0;
 constexpr std::size_t kDashboardPageSize = 15;
 
@@ -92,6 +95,18 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
 
 void render_dashboard_content();
 void show_media_overlay();
+
+void close_notification_overlay(lv_event_t *)
+{
+    if (notification_action != nullptr && !notification_delivery_id.empty()) {
+        notification_action(notification_delivery_id.c_str());
+    }
+    if (notification_overlay != nullptr) {
+        lv_obj_delete(notification_overlay);
+        notification_overlay = nullptr;
+    }
+    notification_delivery_id.clear();
+}
 
 void on_dashboard_group(lv_event_t *event)
 {
@@ -1028,6 +1043,74 @@ void show_tab5_dashboard(
     }
     lv_label_set_text(dashboard_area, area_name.c_str());
     render_dashboard_content();
+    bsp_display_unlock();
+}
+
+void show_tab5_notification(
+    const std::string &delivery_id,
+    const std::string &title_text,
+    const std::string &body_text,
+    bool emergency,
+    NotificationAction action
+)
+{
+    if (!bsp_display_lock(0)) {
+        return;
+    }
+    if (notification_overlay != nullptr) {
+        lv_obj_delete(notification_overlay);
+    }
+    notification_delivery_id = delivery_id;
+    notification_action = action;
+    notification_overlay = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(notification_overlay, 700, 430);
+    lv_obj_center(notification_overlay);
+    lv_obj_set_style_bg_color(notification_overlay, lv_color_hex(0x172733), 0);
+    lv_obj_set_style_border_color(
+        notification_overlay,
+        lv_color_hex(emergency ? 0xe5534b : 0x2bcbba),
+        0
+    );
+    lv_obj_set_style_border_width(notification_overlay, 4, 0);
+    lv_obj_set_style_radius(notification_overlay, 22, 0);
+    lv_obj_set_style_pad_all(notification_overlay, 28, 0);
+    lv_obj_set_flex_flow(notification_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        notification_overlay,
+        LV_FLEX_ALIGN_START,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+
+    lv_obj_t *title = lv_label_create(notification_overlay);
+    lv_label_set_text(title, title_text.c_str());
+    lv_obj_set_style_text_color(
+        title,
+        lv_color_hex(emergency ? 0xff7b72 : 0x55e6d5),
+        0
+    );
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
+
+    lv_obj_t *body = lv_label_create(notification_overlay);
+    lv_obj_set_width(body, lv_pct(92));
+    lv_label_set_long_mode(body, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(body, body_text.c_str());
+    lv_obj_set_style_text_align(body, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(body, lv_color_hex(0xf2f5f7), 0);
+    lv_obj_set_style_text_font(body, LV_FONT_DEFAULT, 0);
+    lv_obj_set_flex_grow(body, 1);
+
+    lv_obj_t *dismiss = lv_button_create(notification_overlay);
+    lv_obj_set_size(dismiss, 220, 64);
+    lv_obj_set_style_bg_color(
+        dismiss,
+        lv_color_hex(emergency ? 0xa83b37 : 0x238f83),
+        0
+    );
+    lv_obj_add_event_cb(dismiss, close_notification_overlay, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *label = lv_label_create(dismiss);
+    lv_label_set_text(label, "Dismiss");
+    lv_obj_center(label);
     bsp_display_unlock();
 }
 

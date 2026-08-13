@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from ..core.connection_manager import manager
 from ..core.registry import registry
 from ..integrations.homeassistant.tts_pipeline import HomeAssistantTextToSpeechClient
 from .audio_command_service import AudioPlayRequest, audio_command_service
@@ -10,6 +11,7 @@ from .audio_command_service import AudioPlayRequest, audio_command_service
 
 class NotificationRequest(BaseModel):
     text: str
+    title: str = "RoomHub"
     endpoint_id: str | None = None
     area_id: str | None = None
     priority: str = "notification"
@@ -22,6 +24,16 @@ class NotificationRequest(BaseModel):
             raise ValueError("notification text must not be empty")
         if len(value) > 1000:
             raise ValueError("notification text must be at most 1000 characters")
+        return value
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("notification title must not be empty")
+        if len(value) > 80:
+            raise ValueError("notification title must be at most 80 characters")
         return value
 
     @field_validator("priority")
@@ -49,7 +61,7 @@ class NotificationService:
             endpoint.device_id
             for endpoint in endpoints
             if endpoint.connected
-            and "speaker" in endpoint.capabilities
+            and ({"display", "speaker"} & set(endpoint.capabilities))
             and (
                 endpoint.device_id == request.endpoint_id
                 if request.endpoint_id is not None
@@ -67,12 +79,12 @@ class NotificationService:
                 "targets": [],
             }
 
-        speech = await self._tts_factory().synthesize(request.text)
         delivery_id = uuid4().hex
         delivery = {
             "delivery_id": delivery_id,
             "status": "sent",
             "text": request.text,
+            "title": request.title,
             "priority": request.priority,
             "endpoint_id": request.endpoint_id,
             "area_id": request.area_id,
@@ -81,12 +93,33 @@ class NotificationService:
         }
         self.deliveries[delivery_id] = delivery
         for target in targets:
-            await audio_command_service.play(target, AudioPlayRequest(
-                request_id=delivery_id,
-                url=speech.url,
-                mime_type=speech.mime_type,
-                priority=request.priority,
-            ))
+            endpoint = registry.get(target)
+            if endpoint is not None and "display" in endpoint.capabilities:
+                await manager.send(target, {
+                    "version": "1.0",
+                    "type": "notification.show",
+                    "source": "roomhub-core",
+                    "target": target,
+                    "payload": {
+                        "delivery_id": delivery_id,
+                        "title": request.title,
+                        "text": request.text,
+                        "priority": request.priority,
+                    },
+                })
+        speaker_targets = [
+            target for target in targets
+            if "speaker" in (registry.get(target).capabilities if registry.get(target) else [])
+        ]
+        if speaker_targets:
+            speech = await self._tts_factory().synthesize(request.text)
+            for target in speaker_targets:
+                await audio_command_service.play(target, AudioPlayRequest(
+                    request_id=delivery_id,
+                    url=speech.url,
+                    mime_type=speech.mime_type,
+                    priority=request.priority,
+                ))
         return delivery.copy()
 
     def update_status(
@@ -102,7 +135,7 @@ class NotificationService:
             return
         delivery["targets"][endpoint_id] = status
         statuses = set(delivery["targets"].values())
-        terminal = {"completed", "interrupted", "failed", "stopped", "not_found"}
+        terminal = {"completed", "dismissed", "interrupted", "failed", "stopped", "not_found"}
         if statuses <= terminal:
             delivery["status"] = (
                 "completed" if statuses == {"completed"} else "finished_with_errors"
