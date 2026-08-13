@@ -22,6 +22,7 @@ bool start(
     StatusCallback status_callback
 );
 bool in_progress();
+bool network_busy();
 void confirm_running_image();
 
 }  // namespace roomhub::ota

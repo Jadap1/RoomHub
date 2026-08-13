@@ -686,12 +686,16 @@ void heartbeat_task(void *argument)
             }
         } else if ((state & (kConnected | kRegistered))
                    == (kConnected | kRegistered)) {
-            flush_firmware_status(transport);
-            const std::string heartbeat = heartbeat_message(
-                transport.endpoint_id,
-                transport.network_audio_allowed.load()
-            );
-            if (!send_text(transport.client, heartbeat)) {
+            // The ESP32-C6 transport cannot reliably service WebSocket writes
+            // while its HTTP connection is streaming the OTA image. Keep the
+            // latest status queued and resume transport traffic afterward.
+            if (!roomhub::ota::network_busy()) {
+                flush_firmware_status(transport);
+                const std::string heartbeat = heartbeat_message(
+                    transport.endpoint_id,
+                    transport.network_audio_allowed.load()
+                );
+                if (!send_text(transport.client, heartbeat)) {
                 ESP_LOGW(kTag, "Could not send RoomHub heartbeat");
                 xEventGroupClearBits(transport.events, kConnected | kRegistered);
                 transport.network_audio_allowed = false;
@@ -706,6 +710,7 @@ void heartbeat_task(void *argument)
                 roomhub::board::show_tab5_roomhub_retrying(
                     (transport.restart_delay_ms.load() + 999) / 1000
                 );
+                }
             }
         }
         const bool registered = (state & (kConnected | kRegistered))

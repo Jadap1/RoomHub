@@ -24,6 +24,7 @@ namespace {
 constexpr char kTag[] = "roomhub_ota";
 constexpr std::size_t kBufferBytes = 8192;
 std::atomic_bool update_active{false};
+std::atomic_bool update_network_busy{false};
 
 struct UpdateRequest {
     std::string request_id;
@@ -188,8 +189,14 @@ bool install(const UpdateRequest &request)
 void update_task(void *argument)
 {
     std::unique_ptr<UpdateRequest> request(static_cast<UpdateRequest *>(argument));
+    // Give the transport task time to acknowledge the command before the C6
+    // network link is dedicated to the firmware HTTP stream.
+    vTaskDelay(pdMS_TO_TICKS(750));
     ESP_LOGI(kTag, "Installing endpoint firmware %s", request->version.c_str());
-    if (install(*request)) {
+    update_network_busy = true;
+    const bool installed = install(*request);
+    update_network_busy = false;
+    if (installed) {
         report(*request, "restarting", 100);
         roomhub::board::show_tab5_firmware_restarting();
         ESP_LOGI(kTag, "Firmware verified; restarting into %s", request->version.c_str());
@@ -246,6 +253,11 @@ bool start(
 bool in_progress()
 {
     return update_active.load();
+}
+
+bool network_busy()
+{
+    return update_network_busy.load();
 }
 
 void confirm_running_image()
