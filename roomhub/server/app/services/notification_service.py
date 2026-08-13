@@ -137,9 +137,12 @@ class NotificationService:
         statuses = set(delivery["targets"].values())
         terminal = {"completed", "dismissed", "interrupted", "failed", "stopped", "not_found"}
         if statuses <= terminal:
-            delivery["status"] = (
-                "completed" if statuses == {"completed"} else "finished_with_errors"
-            )
+            if statuses == {"completed"}:
+                delivery["status"] = "completed"
+            elif statuses <= {"completed", "dismissed"}:
+                delivery["status"] = "dismissed"
+            else:
+                delivery["status"] = "finished_with_errors"
         elif "playing" in statuses:
             delivery["status"] = "playing"
         elif "accepted" in statuses:

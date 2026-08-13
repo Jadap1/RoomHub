@@ -102,6 +102,26 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         service.update_status(delivery_id, "panel", "completed")
         self.assertEqual(service.get(delivery_id)["status"], "completed")
 
+    async def test_dismissal_is_a_successful_terminal_outcome(self):
+        registry.register(Endpoint(
+            device_id="panel",
+            device_name="Panel",
+            room="Kitchen",
+            area_id="kitchen",
+            capabilities=["display"],
+            connected=True,
+        ))
+        service = NotificationService(tts_factory=FakeTtsClient)
+        with patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ):
+            delivery = await service.notify(NotificationRequest(
+                text="Test", endpoint_id="panel"
+            ))
+        service.update_status(delivery["delivery_id"], "panel", "dismissed")
+        self.assertEqual(service.get(delivery["delivery_id"])["status"], "dismissed")
+
     def test_title_validation(self):
         self.assertEqual(NotificationRequest(text="Test", endpoint_id="panel").title, "RoomHub")
         with self.assertRaises(ValueError):
