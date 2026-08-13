@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from .config import PROJECT_NAME, VERSION
@@ -38,6 +38,11 @@ from .services.notification_service import NotificationRequest, notification_ser
 from .services.endpoint_control_service import (
     EndpointControlRequest,
     endpoint_control_service,
+)
+from .services.camera_snapshot_service import (
+    CameraSnapshotTimeout,
+    CameraSnapshotUnavailable,
+    camera_snapshot_service,
 )
 
 
@@ -159,6 +164,42 @@ def create_app(
         if result["status"] == "unavailable":
             raise HTTPException(status_code=409, detail="endpoint unavailable")
         return result
+
+    @app.get("/api/endpoints/{endpoint_id}/camera/snapshot")
+    async def camera_snapshot(endpoint_id: str):
+        try:
+            image = await camera_snapshot_service.capture(endpoint_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="endpoint not found") from error
+        except CameraSnapshotUnavailable as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except CameraSnapshotTimeout as error:
+            raise HTTPException(status_code=504, detail=str(error)) from error
+        return Response(
+            content=image,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.put("/api/endpoints/{endpoint_id}/camera/upload/{request_id}")
+    async def camera_upload(
+        endpoint_id: str,
+        request_id: str,
+        request: Request,
+        x_roomhub_camera_token: str | None = Header(default=None),
+    ):
+        image = await request.body()
+        try:
+            camera_snapshot_service.upload(
+                endpoint_id, request_id, x_roomhub_camera_token, image
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="capture request not found") from error
+        except PermissionError as error:
+            raise HTTPException(status_code=401, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        return {"status": "accepted", "request_id": request_id}
 
     @app.get("/", response_class=HTMLResponse)
     @app.get("//", response_class=HTMLResponse)

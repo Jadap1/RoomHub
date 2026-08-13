@@ -37,13 +37,22 @@ def endpoint_ids(coordinator) -> list[str]:
     return sorted(coordinator.data)
 
 
-def async_setup_endpoint_entities(entry, async_add_entities, entity_class) -> None:
+def async_setup_endpoint_entities(
+    entry, async_add_entities, entity_class, required_capability: str | None = None
+) -> None:
     coordinator = entry.runtime_data
     known: set[str] = set()
 
     @callback
     def add_new_endpoints() -> None:
-        new_ids = set(endpoint_ids(coordinator)) - known
+        eligible_ids = {
+            endpoint_id
+            for endpoint_id in endpoint_ids(coordinator)
+            if required_capability is None
+            or required_capability
+            in coordinator.data[endpoint_id].get("capabilities", [])
+        }
+        new_ids = eligible_ids - known
         if new_ids:
             async_add_entities(entity_class(coordinator, item) for item in sorted(new_ids))
             known.update(new_ids)

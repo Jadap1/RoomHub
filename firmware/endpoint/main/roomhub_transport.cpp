@@ -20,6 +20,7 @@
 #include "roomhub/recovery_backoff.hpp"
 #include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
+#include "tab5_camera.hpp"
 
 namespace roomhub::transport {
 namespace {
@@ -356,6 +357,7 @@ std::string registration_message(
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("speaker"));
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("microphone"));
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("touch"));
+    cJSON_AddItemToArray(capabilities, cJSON_CreateString("camera"));
     return print_message(message);
 }
 
@@ -593,6 +595,25 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                     applied ? "applied" : "rejected"
                 )
             );
+        } else if (message_type == "camera.capture") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            const cJSON *request_id = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "request_id") : nullptr;
+            const cJSON *upload_path = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "upload_path") : nullptr;
+            const cJSON *upload_token = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "upload_token") : nullptr;
+            const bool valid = cJSON_IsString(request_id) && request_id->valuestring
+                && cJSON_IsString(upload_path) && upload_path->valuestring
+                && cJSON_IsString(upload_token) && upload_token->valuestring;
+            if (!valid || !roomhub::board::start_tab5_camera_capture(
+                transport.roomhub_url,
+                valid ? upload_path->valuestring : "",
+                valid ? upload_token->valuestring : "",
+                valid ? request_id->valuestring : "invalid"
+            )) {
+                ESP_LOGW(kTag, "Camera capture command rejected");
+            }
         } else if (message_type == "firmware.update") {
             cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             cJSON *version = cJSON_GetObjectItemCaseSensitive(payload, "version");

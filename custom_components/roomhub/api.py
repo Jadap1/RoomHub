@@ -39,6 +39,24 @@ class RoomHubApi:
             "PUT", f"/api/endpoints/{endpoint_id}/controls", json=payload
         )
 
+    async def camera_image(self, endpoint_id: str) -> bytes:
+        try:
+            async with self._session.get(
+                f"{self.base_url}/api/endpoints/{endpoint_id}/camera/snapshot",
+                timeout=20,
+            ) as response:
+                if response.status >= 400:
+                    raise RoomHubApiError(
+                        f"RoomHub returned HTTP {response.status}"
+                    )
+                if response.content_type != "image/jpeg":
+                    raise RoomHubApiError("RoomHub returned an invalid camera image")
+                return await response.read()
+        except RoomHubApiError:
+            raise
+        except Exception as error:
+            raise RoomHubApiError(str(error)) from error
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
             async with self._session.request(
