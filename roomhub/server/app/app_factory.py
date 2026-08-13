@@ -292,6 +292,8 @@ def create_app(
         return firmware_deployment_service.get(endpoint_id) or {"status": "none"}
 
     @app.post("/notifications")
+    @app.post("/api/notifications")
+    @app.post("/manage/api/notifications")
     async def create_notification(request: NotificationRequest):
         return await notification_service.notify(request)
 

@@ -178,6 +178,48 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
                 endpoint_id="panel",
                 area_id="kitchen",
             )
+        with self.assertRaises(ValueError):
+            NotificationRequest(
+                text="Test", endpoint_id="panel", display=False, speak=False
+            )
+
+    async def test_visual_only_notification_skips_tts(self):
+        registry.register(Endpoint(
+            device_id="panel", device_name="Panel", room="Kitchen",
+            area_id="kitchen", capabilities=["display", "speaker"], connected=True,
+        ))
+        tts = AsyncMock()
+        service = NotificationService(tts_factory=lambda: tts)
+        with patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ) as send:
+            delivery = await service.notify(NotificationRequest(
+                text="Silent", endpoint_id="panel", speak=False
+            ))
+        tts.synthesize.assert_not_awaited()
+        send.assert_awaited_once()
+        self.assertEqual(delivery["channels"]["panel"], {"visual": "sent"})
+
+    async def test_speech_only_notification_skips_visual(self):
+        registry.register(Endpoint(
+            device_id="panel", device_name="Panel", room="Kitchen",
+            area_id="kitchen", capabilities=["display", "speaker"], connected=True,
+        ))
+        service = NotificationService(tts_factory=FakeTtsClient)
+        with patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ) as send, patch(
+            "app.services.notification_service.audio_command_service.play",
+            new=AsyncMock(return_value={"status": "sent"}),
+        ) as play:
+            delivery = await service.notify(NotificationRequest(
+                text="Audio", endpoint_id="panel", display=False
+            ))
+        send.assert_not_awaited()
+        play.assert_awaited_once()
+        self.assertEqual(delivery["channels"]["panel"], {"audio": "sent"})
 
     async def test_endpoint_area_assignment_persists(self):
         with tempfile.TemporaryDirectory() as directory:

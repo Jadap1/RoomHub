@@ -16,6 +16,8 @@ class NotificationRequest(BaseModel):
     endpoint_id: str | None = None
     area_id: str | None = None
     priority: str = "notification"
+    display: bool = True
+    speak: bool = True
 
     @field_validator("text")
     @classmethod
@@ -48,6 +50,8 @@ class NotificationRequest(BaseModel):
     def validate_target(self):
         if (self.endpoint_id is None) == (self.area_id is None):
             raise ValueError("provide exactly one of endpoint_id or area_id")
+        if not self.display and not self.speak:
+            raise ValueError("enable at least one notification channel")
         return self
 
 
@@ -62,7 +66,10 @@ class NotificationService:
             endpoint.device_id
             for endpoint in endpoints
             if endpoint.connected
-            and ({"display", "speaker"} & set(endpoint.capabilities))
+            and (
+                (request.display and "display" in endpoint.capabilities)
+                or (request.speak and "speaker" in endpoint.capabilities)
+            )
             and (
                 endpoint.device_id == request.endpoint_id
                 if request.endpoint_id is not None
@@ -101,11 +108,14 @@ class NotificationService:
                     ("visual", "display"), ("audio", "speaker")
                 )
                 if endpoint is not None and capability in endpoint.capabilities
+                and ((channel == "visual" and request.display)
+                     or (channel == "audio" and request.speak))
             }
         self.deliveries[delivery_id] = delivery
         for target in targets:
             endpoint = registry.get(target)
-            if endpoint is not None and "display" in endpoint.capabilities:
+            if (request.display and endpoint is not None
+                and "display" in endpoint.capabilities):
                 await manager.send(target, {
                     "version": "1.0",
                     "type": "notification.show",
@@ -120,7 +130,9 @@ class NotificationService:
                 })
         speaker_targets = [
             target for target in targets
-            if "speaker" in (registry.get(target).capabilities if registry.get(target) else [])
+            if request.speak and "speaker" in (
+                registry.get(target).capabilities if registry.get(target) else []
+            )
         ]
         if speaker_targets:
             speech = await self._tts_factory().synthesize(request.text)

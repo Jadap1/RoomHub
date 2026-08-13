@@ -97,8 +97,15 @@ rest_command:
     content_type: application/json
     payload: >-
       {"text": {{ text | tojson }}, "area_id": {{ area_id | tojson }},
-      "priority": "notification"}
+      "title": {{ title | default('RoomHub') | tojson }},
+      "priority": {{ priority | default('notification') | tojson }},
+      "display": {{ display | default(true) | tojson }},
+      "speak": {{ speak | default(true) | tojson }}}
 ```
+
+Set `display: false` for speech-only announcements or `speak: false` for a
+silent visual alert. At least one channel must remain enabled. The RoomHub
+management page also includes a composer with live area and endpoint selectors.
 
 ## Tests
 
