@@ -39,14 +39,14 @@ lv_timer_t *notification_timer = nullptr;
 std::string notification_delivery_id;
 NotificationAction notification_action = nullptr;
 NotificationButtonAction notification_button_action = nullptr;
-std::vector<NotificationButton> notification_buttons;
+NotificationButtons notification_buttons;
 struct PendingNotification {
     std::string delivery_id;
     std::string title;
     std::string text;
     bool emergency;
     unsigned int timeout_seconds;
-    std::vector<NotificationButton> buttons;
+    NotificationButtons buttons;
     NotificationAction action;
     NotificationButtonAction button_action;
 };
@@ -127,7 +127,7 @@ void finish_notification(const char *status)
     notification_delivery_id.clear();
     notification_action = nullptr;
     notification_button_action = nullptr;
-    notification_buttons.clear();
+    notification_buttons.count = 0;
     if (action != nullptr && !delivery_id.empty()) {
         action(delivery_id.c_str(), status);
     }
@@ -1106,7 +1106,7 @@ void show_tab5_notification(
     bool emergency,
     unsigned int timeout_seconds,
     bool queue,
-    const std::vector<NotificationButton> &buttons,
+    const NotificationButtons &buttons,
     NotificationAction action,
     NotificationButtonAction button_action
 )
@@ -1193,7 +1193,8 @@ void render_notification(const PendingNotification &notification)
         controls, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
         LV_FLEX_ALIGN_CENTER
     );
-    for (const auto &button : notification_buttons) {
+    for (std::size_t index = 0; index < notification_buttons.count; ++index) {
+        const auto &button = notification_buttons.items[index];
         lv_obj_t *action_button = lv_button_create(controls);
         lv_obj_set_size(action_button, 190, 64);
         lv_obj_set_style_bg_color(action_button, lv_color_hex(0x75579b), 0);

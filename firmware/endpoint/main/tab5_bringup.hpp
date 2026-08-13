@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,11 @@ struct NotificationButton {
     std::string entity_id;
 };
 
+struct NotificationButtons {
+    std::array<NotificationButton, 2> items;
+    std::size_t count = 0;
+};
+
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();
 void show_tab5_wake_word_detected();
@@ -86,7 +92,7 @@ void show_tab5_notification(
     bool emergency,
     unsigned int timeout_seconds,
     bool queue,
-    const std::vector<NotificationButton> &buttons,
+    const NotificationButtons &buttons,
     NotificationAction action,
     NotificationButtonAction button_action
 );

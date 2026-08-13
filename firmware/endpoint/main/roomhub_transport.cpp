@@ -512,16 +512,18 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             if (cJSON_IsString(delivery_id) && delivery_id->valuestring
                 && cJSON_IsString(title) && title->valuestring
                 && cJSON_IsString(text) && text->valuestring) {
-                std::vector<roomhub::board::NotificationButton> buttons;
+                roomhub::board::NotificationButtons buttons;
                 if (cJSON_IsArray(actions)) {
                     const cJSON *item = nullptr;
                     cJSON_ArrayForEach(item, actions) {
                         const cJSON *label = cJSON_GetObjectItemCaseSensitive(item, "label");
                         const cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(item, "entity_id");
-                        if (buttons.size() < 2 && cJSON_IsString(label)
+                        if (buttons.count < buttons.items.size() && cJSON_IsString(label)
                             && label->valuestring && cJSON_IsString(entity_id)
                             && entity_id->valuestring) {
-                            buttons.push_back({label->valuestring, entity_id->valuestring});
+                            buttons.items[buttons.count++] = {
+                                label->valuestring, entity_id->valuestring
+                            };
                         }
                     }
                 }
