@@ -102,7 +102,8 @@ rest_command:
       "display": {{ display | default(true) | tojson }},
       "speak": {{ speak | default(true) | tojson }},
       "timeout_seconds": {{ timeout_seconds | default(0) | int }},
-      "presentation": {{ presentation | default('replace') | tojson }}}
+      "presentation": {{ presentation | default('replace') | tojson }},
+      "actions": {{ actions | default([]) | tojson }}}
 ```
 
 Set `display: false` for speech-only announcements or `speak: false` for a
@@ -111,6 +112,18 @@ management page also includes a composer with live area and endpoint selectors.
 Use `timeout_seconds: 0` for a persistent alert, or up to `3600` seconds for
 automatic dismissal. `presentation: queue` waits behind the visible alert;
 `replace` supersedes it immediately.
+Up to two action buttons may target Home Assistant scripts or scenes:
+
+```yaml
+actions:
+  - label: Run bedtime
+    entity_id: script.bedtime
+  - label: Relax
+    entity_id: scene.relax
+```
+
+RoomHub binds each action to its delivery and endpoint, then validates the
+entity again when tapped. Other entity domains are rejected.
 
 ## Tests
 

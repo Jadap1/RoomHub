@@ -105,6 +105,17 @@ void send_notification_status(const char *delivery_id, const char *status)
     send_text(context.client, print_message(message));
 }
 
+void send_notification_action(const char *delivery_id, const char *entity_id)
+{
+    if (delivery_id == nullptr || entity_id == nullptr || context.client == nullptr) return;
+    cJSON *message = create_message("notification.action", context.endpoint_id);
+    if (message == nullptr) return;
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(payload, "delivery_id", delivery_id);
+    cJSON_AddStringToObject(payload, "entity_id", entity_id);
+    send_text(context.client, print_message(message));
+}
+
 void send_firmware_status(
     const std::string &request_id,
     const std::string &version,
@@ -497,9 +508,23 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             const cJSON *priority = cJSON_GetObjectItemCaseSensitive(payload, "priority");
             const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(payload, "timeout_seconds");
             const cJSON *presentation = cJSON_GetObjectItemCaseSensitive(payload, "presentation");
+            const cJSON *actions = cJSON_GetObjectItemCaseSensitive(payload, "actions");
             if (cJSON_IsString(delivery_id) && delivery_id->valuestring
                 && cJSON_IsString(title) && title->valuestring
                 && cJSON_IsString(text) && text->valuestring) {
+                std::vector<roomhub::board::NotificationButton> buttons;
+                if (cJSON_IsArray(actions)) {
+                    const cJSON *item = nullptr;
+                    cJSON_ArrayForEach(item, actions) {
+                        const cJSON *label = cJSON_GetObjectItemCaseSensitive(item, "label");
+                        const cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(item, "entity_id");
+                        if (buttons.size() < 2 && cJSON_IsString(label)
+                            && label->valuestring && cJSON_IsString(entity_id)
+                            && entity_id->valuestring) {
+                            buttons.push_back({label->valuestring, entity_id->valuestring});
+                        }
+                    }
+                }
                 roomhub::board::show_tab5_notification(
                     delivery_id->valuestring,
                     title->valuestring,
@@ -510,7 +535,7 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                         ? static_cast<unsigned int>(timeout->valuedouble) : 0,
                     cJSON_IsString(presentation) && presentation->valuestring
                         && std::string(presentation->valuestring) == "queue",
-                    send_notification_status
+                    buttons, send_notification_status, send_notification_action
                 );
             }
         } else if (message_type == "firmware.update") {

@@ -51,6 +51,14 @@ struct MediaPlayer {
 
 using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
 using NotificationAction = void (*)(const char *delivery_id, const char *status);
+using NotificationButtonAction = void (*)(
+    const char *delivery_id, const char *entity_id
+);
+
+struct NotificationButton {
+    std::string label;
+    std::string entity_id;
+};
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();
@@ -78,7 +86,9 @@ void show_tab5_notification(
     bool emergency,
     unsigned int timeout_seconds,
     bool queue,
-    NotificationAction action
+    const std::vector<NotificationButton> &buttons,
+    NotificationAction action,
+    NotificationButtonAction button_action
 );
 
 }  // namespace roomhub::board

@@ -38,13 +38,17 @@ lv_obj_t *notification_overlay = nullptr;
 lv_timer_t *notification_timer = nullptr;
 std::string notification_delivery_id;
 NotificationAction notification_action = nullptr;
+NotificationButtonAction notification_button_action = nullptr;
+std::vector<NotificationButton> notification_buttons;
 struct PendingNotification {
     std::string delivery_id;
     std::string title;
     std::string text;
     bool emergency;
     unsigned int timeout_seconds;
+    std::vector<NotificationButton> buttons;
     NotificationAction action;
+    NotificationButtonAction button_action;
 };
 std::deque<PendingNotification> pending_notifications;
 std::size_t selected_media_player = 0;
@@ -122,6 +126,8 @@ void finish_notification(const char *status)
     }
     notification_delivery_id.clear();
     notification_action = nullptr;
+    notification_button_action = nullptr;
+    notification_buttons.clear();
     if (action != nullptr && !delivery_id.empty()) {
         action(delivery_id.c_str(), status);
     }
@@ -141,6 +147,18 @@ void expire_notification(lv_timer_t *)
 {
     notification_timer = nullptr;
     finish_notification("expired");
+}
+
+void activate_notification_button(lv_event_t *event)
+{
+    const char *entity_id = static_cast<const char *>(
+        lv_event_get_user_data(event)
+    );
+    if (notification_button_action != nullptr && entity_id != nullptr
+        && !notification_delivery_id.empty()) {
+        notification_button_action(notification_delivery_id.c_str(), entity_id);
+        finish_notification("dismissed");
+    }
 }
 
 void on_dashboard_group(lv_event_t *event)
@@ -1088,7 +1106,9 @@ void show_tab5_notification(
     bool emergency,
     unsigned int timeout_seconds,
     bool queue,
-    NotificationAction action
+    const std::vector<NotificationButton> &buttons,
+    NotificationAction action,
+    NotificationButtonAction button_action
 )
 {
     if (!bsp_display_lock(0)) {
@@ -1099,7 +1119,7 @@ void show_tab5_notification(
             if (pending_notifications.size() < 8) {
                 pending_notifications.push_back({
                     delivery_id, title_text, body_text, emergency,
-                    timeout_seconds, action
+                    timeout_seconds, buttons, action, button_action
                 });
             } else if (action != nullptr) {
                 action(delivery_id.c_str(), "replaced");
@@ -1111,7 +1131,8 @@ void show_tab5_notification(
         finish_notification("replaced");
     }
     render_notification({
-        delivery_id, title_text, body_text, emergency, timeout_seconds, action
+        delivery_id, title_text, body_text, emergency, timeout_seconds,
+        buttons, action, button_action
     });
     bsp_display_unlock();
 }
@@ -1122,6 +1143,8 @@ void render_notification(const PendingNotification &notification)
 {
     notification_delivery_id = notification.delivery_id;
     notification_action = notification.action;
+    notification_button_action = notification.button_action;
+    notification_buttons = notification.buttons;
     notification_overlay = lv_obj_create(lv_screen_active());
     lv_obj_set_size(notification_overlay, 700, 430);
     lv_obj_center(notification_overlay);
@@ -1160,7 +1183,29 @@ void render_notification(const PendingNotification &notification)
     lv_obj_set_style_text_font(body, LV_FONT_DEFAULT, 0);
     lv_obj_set_flex_grow(body, 1);
 
-    lv_obj_t *dismiss = lv_button_create(notification_overlay);
+    lv_obj_t *controls = lv_obj_create(notification_overlay);
+    lv_obj_set_size(controls, lv_pct(100), 70);
+    lv_obj_set_style_bg_opa(controls, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(controls, 0, 0);
+    lv_obj_set_style_pad_all(controls, 2, 0);
+    lv_obj_set_flex_flow(controls, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(
+        controls, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+    for (const auto &button : notification_buttons) {
+        lv_obj_t *action_button = lv_button_create(controls);
+        lv_obj_set_size(action_button, 190, 64);
+        lv_obj_set_style_bg_color(action_button, lv_color_hex(0x75579b), 0);
+        lv_obj_add_event_cb(
+            action_button, activate_notification_button, LV_EVENT_CLICKED,
+            const_cast<char *>(button.entity_id.c_str())
+        );
+        lv_obj_t *action_label = lv_label_create(action_button);
+        lv_label_set_text(action_label, button.label.c_str());
+        lv_obj_center(action_label);
+    }
+    lv_obj_t *dismiss = lv_button_create(controls);
     lv_obj_set_size(dismiss, 220, 64);
     lv_obj_set_style_bg_color(
         dismiss,

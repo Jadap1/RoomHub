@@ -53,6 +53,14 @@ async def dispatch(message):
         )
         return {"status": status}
 
+    elif message_type == "notification.action":
+
+        payload = message.get("payload", {})
+        return await notification_service.activate_action(
+            payload.get("delivery_id"), message.get("source"),
+            payload.get("entity_id"),
+        )
+
     elif message_type in command_router.commands:
 
         return await command_router.execute(message)

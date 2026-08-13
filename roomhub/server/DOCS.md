@@ -56,3 +56,7 @@ priority uses a red treatment and the existing emergency audio priority. It
 records per-endpoint delivery state, including display dismissal. Assign endpoint
 areas with `PUT /endpoints/{endpoint_id}/area/{area_id}`; assignments persist in
 the RoomHub database and are restored when endpoints reconnect.
+
+An optional `actions` list of no more than two `{label, entity_id}` objects adds
+buttons to the alert. Only `script.*` and `scene.*` entities are accepted, and
+each tap is checked against the original delivery and endpoint before execution.

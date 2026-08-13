@@ -1,5 +1,5 @@
 name: RoomHub
-version: "0.1.28"
+version: "0.1.29"
 slug: roomhub
 description: Local RoomHub endpoint, Home Assistant, and Assist bridge
 url: https://github.com/Jadap1/RoomHub

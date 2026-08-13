@@ -5,9 +5,29 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..core.connection_manager import manager
+from ..core.entity_registry import entity_registry
+from ..core.event_bus import event_bus
 from ..core.registry import registry
+from ..events.entity_events import EntityCommandEvent
 from ..integrations.homeassistant.tts_pipeline import HomeAssistantTextToSpeechClient
 from .audio_command_service import AudioPlayRequest, audio_command_service
+
+
+class NotificationAction(BaseModel):
+    label: str = Field(min_length=1, max_length=30)
+    entity_id: str
+
+    @field_validator("label")
+    @classmethod
+    def trim_label(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("entity_id")
+    @classmethod
+    def validate_entity_id(cls, value: str) -> str:
+        if not value.startswith(("script.", "scene.")):
+            raise ValueError("notification actions must target a script or scene")
+        return value
 
 
 class NotificationRequest(BaseModel):
@@ -20,6 +40,7 @@ class NotificationRequest(BaseModel):
     speak: bool = True
     timeout_seconds: int = Field(default=0, ge=0, le=3600)
     presentation: str = "replace"
+    actions: list[NotificationAction] = Field(default_factory=list, max_length=2)
 
     @field_validator("text")
     @classmethod
@@ -105,6 +126,7 @@ class NotificationService:
             "priority": request.priority,
             "timeout_seconds": request.timeout_seconds,
             "presentation": request.presentation,
+            "actions": [action.model_dump() for action in request.actions],
             "endpoint_id": request.endpoint_id,
             "area_id": request.area_id,
             "created_at": datetime.now(UTC).isoformat(),
@@ -139,6 +161,7 @@ class NotificationService:
                         "priority": request.priority,
                         "timeout_seconds": request.timeout_seconds,
                         "presentation": request.presentation,
+                        "actions": [action.model_dump() for action in request.actions],
                     },
                 })
         speaker_targets = [
@@ -157,6 +180,29 @@ class NotificationService:
                     priority=request.priority,
                 ))
         return deepcopy(delivery)
+
+    async def activate_action(
+        self, delivery_id: str | None, endpoint_id: str | None,
+        entity_id: str | None,
+    ) -> dict:
+        delivery = self.deliveries.get(delivery_id or "")
+        allowed = {
+            action["entity_id"] for action in delivery.get("actions", [])
+        } if delivery else set()
+        entity = entity_registry.get(entity_id) if isinstance(entity_id, str) else None
+        if (delivery is None or endpoint_id not in delivery["targets"]
+            or entity_id not in allowed or entity is None
+            or entity.entity_type not in {"script", "scene"}):
+            return {"status": "rejected", "reason": "invalid_notification_action"}
+        await event_bus.publish(EntityCommandEvent(
+            entity_id=entity_id, command="turn_on", data={}
+        ))
+        delivery["action"] = {
+            "endpoint_id": endpoint_id,
+            "entity_id": entity_id,
+            "activated_at": datetime.now(UTC).isoformat(),
+        }
+        return {"status": "activated", "entity_id": entity_id}
 
     def update_status(
         self,

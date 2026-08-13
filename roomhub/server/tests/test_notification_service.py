@@ -9,7 +9,11 @@ from app.core.registry import registry
 from app.models.area import Area
 from app.models.endpoint import Endpoint
 from app.services.endpoint_assignment_service import EndpointAssignmentService
-from app.services.notification_service import NotificationRequest, NotificationService
+from app.services.notification_service import (
+    NotificationAction, NotificationRequest, NotificationService,
+)
+from app.core.entity_registry import entity_registry
+from app.models.entity import Entity
 from app.integrations.homeassistant.tts_pipeline import SpeechOutput
 
 
@@ -24,9 +28,13 @@ class FakeTtsClient:
 class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         registry.endpoints = {}
+        entity_registry.entities = {}
+        entity_registry.states = {}
 
     def tearDown(self):
         registry.endpoints = {}
+        entity_registry.entities = {}
+        entity_registry.states = {}
         area_registry.areas = {}
         area_registry.areas = {}
 
@@ -174,6 +182,55 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
             NotificationRequest(
                 text="Test", endpoint_id="panel", presentation="unknown"
             )
+
+    def test_action_validation(self):
+        request = NotificationRequest(
+            text="Test", endpoint_id="panel",
+            actions=[NotificationAction(label="Run", entity_id="script.bedtime")],
+        )
+        self.assertEqual(request.actions[0].entity_id, "script.bedtime")
+        with self.assertRaises(ValueError):
+            NotificationAction(label="Unsafe", entity_id="light.bedroom")
+        with self.assertRaises(ValueError):
+            NotificationRequest(
+                text="Test", endpoint_id="panel",
+                actions=[
+                    {"label": "One", "entity_id": "scene.one"},
+                    {"label": "Two", "entity_id": "scene.two"},
+                    {"label": "Three", "entity_id": "scene.three"},
+                ],
+            )
+
+    async def test_notification_action_is_bound_to_delivery_and_endpoint(self):
+        registry.register(Endpoint(
+            device_id="panel", device_name="Panel", room="Kitchen",
+            area_id="kitchen", capabilities=["display"], connected=True,
+        ))
+        entity_registry.entities["script.bedtime"] = Entity(
+            entity_id="script.bedtime", entity_type="script", name="Bedtime"
+        )
+        service = NotificationService(tts_factory=FakeTtsClient)
+        with patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ):
+            delivery = await service.notify(NotificationRequest(
+                text="Test", endpoint_id="panel",
+                actions=[{"label": "Run", "entity_id": "script.bedtime"}],
+            ))
+        with patch(
+            "app.services.notification_service.event_bus.publish",
+            new=AsyncMock(),
+        ) as publish:
+            result = await service.activate_action(
+                delivery["delivery_id"], "panel", "script.bedtime"
+            )
+            rejected = await service.activate_action(
+                delivery["delivery_id"], "other", "script.bedtime"
+            )
+        self.assertEqual(result["status"], "activated")
+        self.assertEqual(rejected["status"], "rejected")
+        self.assertEqual(publish.await_args.args[0].command, "turn_on")
 
     async def test_visual_expiry_is_a_successful_terminal_outcome(self):
         registry.register(Endpoint(
