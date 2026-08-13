@@ -25,8 +25,6 @@ namespace roomhub::board {
 namespace {
 
 constexpr char kTag[] = "tab5_camera";
-constexpr unsigned kWidth = 640;
-constexpr unsigned kHeight = 480;
 constexpr std::size_t kBufferCount = 2;
 std::atomic_bool capture_active{false};
 
@@ -109,11 +107,12 @@ bool capture_jpeg(std::vector<std::uint8_t> &image)
     {
         v4l2_format format{};
         format.type = type;
-        format.fmt.pix.width = kWidth;
-        format.fmt.pix.height = kHeight;
-        format.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB565;
-        if (ioctl(fd, VIDIOC_S_FMT, &format) != 0
-            || format.fmt.pix.pixelformat != V4L2_PIX_FMT_RGB565) goto cleanup;
+        if (ioctl(fd, VIDIOC_G_FMT, &format) != 0) goto cleanup;
+        if (format.fmt.pix.pixelformat == V4L2_PIX_FMT_RGB565X) {
+            format.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB565;
+            if (ioctl(fd, VIDIOC_S_FMT, &format) != 0) goto cleanup;
+        }
+        if (format.fmt.pix.pixelformat != V4L2_PIX_FMT_RGB565) goto cleanup;
 
         v4l2_requestbuffers requested{};
         requested.count = kBufferCount;
