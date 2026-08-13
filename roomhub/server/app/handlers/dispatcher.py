@@ -47,7 +47,8 @@ async def dispatch(message):
 
         payload = message.get("payload", {})
         notification_service.update_status(
-            payload.get("delivery_id"), message.get("source"), "dismissed"
+            payload.get("delivery_id"), message.get("source"), "dismissed",
+            channel="visual",
         )
         return {"status": "dismissed"}
 

@@ -119,8 +119,40 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
             delivery = await service.notify(NotificationRequest(
                 text="Test", endpoint_id="panel"
             ))
-        service.update_status(delivery["delivery_id"], "panel", "dismissed")
+        service.update_status(
+            delivery["delivery_id"], "panel", "dismissed", channel="visual"
+        )
         self.assertEqual(service.get(delivery["delivery_id"])["status"], "dismissed")
+
+    async def test_visual_dismissal_is_not_overwritten_by_audio_completion(self):
+        registry.register(Endpoint(
+            device_id="panel",
+            device_name="Panel",
+            room="Kitchen",
+            area_id="kitchen",
+            capabilities=["display", "speaker"],
+            connected=True,
+        ))
+        service = NotificationService(tts_factory=FakeTtsClient)
+        with patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "app.services.notification_service.audio_command_service.play",
+            new=AsyncMock(return_value={"status": "sent"}),
+        ):
+            delivery = await service.notify(NotificationRequest(
+                text="Test", endpoint_id="panel"
+            ))
+        delivery_id = delivery["delivery_id"]
+        service.update_status(delivery_id, "panel", "dismissed", channel="visual")
+        service.update_status(delivery_id, "panel", "completed", channel="audio")
+        result = service.get(delivery_id)
+        self.assertEqual(result["status"], "dismissed")
+        self.assertEqual(result["targets"]["panel"], "dismissed")
+        self.assertEqual(result["channels"]["panel"], {
+            "visual": "dismissed", "audio": "completed"
+        })
 
     def test_title_validation(self):
         self.assertEqual(NotificationRequest(text="Test", endpoint_id="panel").title, "RoomHub")

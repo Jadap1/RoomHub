@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -90,7 +91,17 @@ class NotificationService:
             "area_id": request.area_id,
             "created_at": datetime.now(UTC).isoformat(),
             "targets": {target: "sent" for target in targets},
+            "channels": {},
         }
+        for target in targets:
+            endpoint = registry.get(target)
+            delivery["channels"][target] = {
+                channel: "sent"
+                for channel, capability in (
+                    ("visual", "display"), ("audio", "speaker")
+                )
+                if endpoint is not None and capability in endpoint.capabilities
+            }
         self.deliveries[delivery_id] = delivery
         for target in targets:
             endpoint = registry.get(target)
@@ -120,37 +131,63 @@ class NotificationService:
                     mime_type=speech.mime_type,
                     priority=request.priority,
                 ))
-        return delivery.copy()
+        return deepcopy(delivery)
 
     def update_status(
         self,
         delivery_id: str | None,
         endpoint_id: str | None,
         status: str | None,
+        channel: str = "audio",
     ) -> None:
         if not delivery_id or not endpoint_id or not status:
             return
         delivery = self.deliveries.get(delivery_id)
-        if delivery is None or endpoint_id not in delivery["targets"]:
+        if (delivery is None or endpoint_id not in delivery["targets"]
+            or channel not in delivery["channels"].get(endpoint_id, {})):
             return
-        delivery["targets"][endpoint_id] = status
-        statuses = set(delivery["targets"].values())
+        delivery["channels"][endpoint_id][channel] = status
+        self._summarize(delivery)
+
+    @staticmethod
+    def _summarize(delivery: dict) -> None:
         terminal = {"completed", "dismissed", "interrupted", "failed", "stopped", "not_found"}
-        if statuses <= terminal:
-            if statuses == {"completed"}:
-                delivery["status"] = "completed"
-            elif statuses <= {"completed", "dismissed"}:
+        errors = {"interrupted", "failed", "stopped", "not_found"}
+        for endpoint_id, channels in delivery["channels"].items():
+            statuses = set(channels.values())
+            if statuses <= terminal:
+                if statuses & errors:
+                    summary = "finished_with_errors"
+                elif "dismissed" in statuses:
+                    summary = "dismissed"
+                else:
+                    summary = "completed"
+            elif "playing" in statuses:
+                summary = "playing"
+            elif "accepted" in statuses:
+                summary = "accepted"
+            else:
+                summary = "sent"
+            delivery["targets"][endpoint_id] = summary
+
+        statuses = set(delivery["targets"].values())
+        if statuses <= {"completed", "dismissed", "finished_with_errors"}:
+            if "finished_with_errors" in statuses:
+                delivery["status"] = "finished_with_errors"
+            elif "dismissed" in statuses:
                 delivery["status"] = "dismissed"
             else:
-                delivery["status"] = "finished_with_errors"
+                delivery["status"] = "completed"
         elif "playing" in statuses:
             delivery["status"] = "playing"
         elif "accepted" in statuses:
             delivery["status"] = "accepted"
+        else:
+            delivery["status"] = "sent"
 
     def get(self, delivery_id: str) -> dict | None:
         delivery = self.deliveries.get(delivery_id)
-        return None if delivery is None else delivery.copy()
+        return None if delivery is None else deepcopy(delivery)
 
 
 notification_service = NotificationService()
