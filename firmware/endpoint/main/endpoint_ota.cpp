@@ -113,6 +113,7 @@ bool install(const UpdateRequest &request)
     mbedtls_sha256_starts(&sha, 0);
     std::size_t received = 0;
     bool okay = buffer != nullptr;
+    unsigned int last_reported_progress = 0;
     while (okay && received < request.size) {
         const int count = esp_http_client_read(
             client,
@@ -140,10 +141,12 @@ bool install(const UpdateRequest &request)
             break;
         }
         mbedtls_sha256_update(&sha, buffer.get(), count);
-        roomhub::board::show_tab5_firmware_updating(
-            static_cast<unsigned int>((received * 100) / request.size)
-        );
-        report(request, "downloading", static_cast<unsigned int>((received * 100) / request.size));
+        const unsigned int progress = static_cast<unsigned int>((received * 100) / request.size);
+        roomhub::board::show_tab5_firmware_updating(progress);
+        if (progress == 100 || progress >= last_reported_progress + 5) {
+            report(request, "downloading", progress);
+            last_reported_progress = progress;
+        }
     }
     std::uint8_t digest[32]{};
     mbedtls_sha256_finish(&sha, digest);

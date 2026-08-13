@@ -53,6 +53,14 @@ struct TransportContext {
     std::uint8_t *voice_audio_storage = nullptr;
     SemaphoreHandle_t voice_response_mutex = nullptr;
     VoiceResponse voice_response;
+    SemaphoreHandle_t firmware_status_mutex = nullptr;
+    TaskHandle_t heartbeat_task_handle = nullptr;
+    std::string firmware_request_id;
+    std::string firmware_version;
+    std::string firmware_status;
+    std::string firmware_reason;
+    unsigned int firmware_progress = 0;
+    bool firmware_status_pending = false;
     roomhub::recovery::Backoff reconnect_backoff{1000, 30000};
 };
 
@@ -94,16 +102,45 @@ void send_firmware_status(
     const char *reason
 )
 {
-    if (context.client == nullptr) return;
-    cJSON *message = create_message("firmware.status", context.endpoint_id);
-    if (message == nullptr) return;
+    if (context.firmware_status_mutex == nullptr) return;
+    if (xSemaphoreTake(context.firmware_status_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    context.firmware_request_id = request_id;
+    context.firmware_version = version;
+    context.firmware_status = status;
+    context.firmware_progress = progress;
+    context.firmware_reason = reason == nullptr ? "" : reason;
+    context.firmware_status_pending = true;
+    xSemaphoreGive(context.firmware_status_mutex);
+    if (context.heartbeat_task_handle != nullptr) {
+        xTaskNotifyGive(context.heartbeat_task_handle);
+    }
+}
+
+void flush_firmware_status(TransportContext &transport)
+{
+    if (transport.firmware_status_mutex == nullptr
+        || xSemaphoreTake(transport.firmware_status_mutex, 0) != pdTRUE) return;
+    if (!transport.firmware_status_pending) {
+        xSemaphoreGive(transport.firmware_status_mutex);
+        return;
+    }
+    cJSON *message = create_message("firmware.status", transport.endpoint_id);
+    if (message == nullptr) {
+        xSemaphoreGive(transport.firmware_status_mutex);
+        return;
+    }
     cJSON *payload = cJSON_AddObjectToObject(message, "payload");
-    cJSON_AddStringToObject(payload, "request_id", request_id.c_str());
-    cJSON_AddStringToObject(payload, "version", version.c_str());
-    cJSON_AddStringToObject(payload, "status", status);
-    cJSON_AddNumberToObject(payload, "progress", progress);
-    if (reason != nullptr) cJSON_AddStringToObject(payload, "reason", reason);
-    send_text(context.client, print_message(message));
+    cJSON_AddStringToObject(payload, "request_id", transport.firmware_request_id.c_str());
+    cJSON_AddStringToObject(payload, "version", transport.firmware_version.c_str());
+    cJSON_AddStringToObject(payload, "status", transport.firmware_status.c_str());
+    cJSON_AddNumberToObject(payload, "progress", transport.firmware_progress);
+    if (!transport.firmware_reason.empty()) {
+        cJSON_AddStringToObject(payload, "reason", transport.firmware_reason.c_str());
+    }
+    if (send_text(transport.client, print_message(message))) {
+        transport.firmware_status_pending = false;
+    }
+    xSemaphoreGive(transport.firmware_status_mutex);
 }
 
 void show_dashboard_payload(const cJSON *payload)
@@ -617,6 +654,7 @@ void websocket_event_handler(
 void heartbeat_task(void *argument)
 {
     auto &transport = *static_cast<TransportContext *>(argument);
+    transport.heartbeat_task_handle = xTaskGetCurrentTaskHandle();
     while (true) {
         const EventBits_t state = xEventGroupGetBits(transport.events);
         if ((state & kClientStopped) != 0) {
@@ -648,6 +686,7 @@ void heartbeat_task(void *argument)
             }
         } else if ((state & (kConnected | kRegistered))
                    == (kConnected | kRegistered)) {
+            flush_firmware_status(transport);
             const std::string heartbeat = heartbeat_message(
                 transport.endpoint_id,
                 transport.network_audio_allowed.load()
@@ -671,7 +710,7 @@ void heartbeat_task(void *argument)
         }
         const bool registered = (state & (kConnected | kRegistered))
             == (kConnected | kRegistered);
-        vTaskDelay(pdMS_TO_TICKS(registered ? 10000 : 1000));
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(registered ? 10000 : 1000));
     }
 }
 
@@ -769,6 +808,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     StartResult result;
     context.events = xEventGroupCreate();
     context.voice_response_mutex = xSemaphoreCreateMutex();
+    context.firmware_status_mutex = xSemaphoreCreateMutex();
     context.voice_audio_stream_state = static_cast<StaticStreamBuffer_t *>(
         heap_caps_calloc(1, sizeof(StaticStreamBuffer_t), MALLOC_CAP_INTERNAL)
     );
@@ -797,6 +837,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     if (
         context.events == nullptr
         || context.voice_response_mutex == nullptr
+        || context.firmware_status_mutex == nullptr
         || context.voice_audio_stream == nullptr
         || context.registration.empty()
     ) {
