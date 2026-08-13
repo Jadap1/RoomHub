@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to RoomHub",
+        "description": "Enter the local URL published by the RoomHub add-on.",
+        "data": {"url": "RoomHub URL"}
+      }
+    },
+    "error": {"cannot_connect": "Unable to connect to RoomHub"},
+    "abort": {"already_configured": "This RoomHub instance is already configured"}
+  }
+}

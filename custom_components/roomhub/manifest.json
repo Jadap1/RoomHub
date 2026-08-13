@@ -1,0 +1,11 @@
+{
+  "domain": "roomhub",
+  "name": "RoomHub",
+  "codeowners": ["@Jadap1"],
+  "config_flow": true,
+  "documentation": "https://github.com/Jadap1/RoomHub",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

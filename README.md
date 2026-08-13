@@ -13,6 +13,16 @@ provides:
 - SQLite caching and restart recovery;
 - HTTP and WebSocket interfaces for RoomHub endpoints.
 
+## Home Assistant integration
+
+The `custom_components/roomhub` integration exposes each registered endpoint
+as a Home Assistant device with a screen switch, volume slider, connectivity
+binary sensor, and firmware sensor. Install this repository as a HACS custom
+integration (category **Integration**), restart Home Assistant, then add
+**RoomHub** from **Settings → Devices & services**. The default add-on URL is
+`http://cf9aeebe-roomhub:8000`; the host LAN URL can be used if add-on DNS is
+not available.
+
 ## Server setup
 
 RoomHub Core currently targets Python 3.12 or later.
