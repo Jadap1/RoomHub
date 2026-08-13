@@ -23,6 +23,7 @@ namespace {
 
 constexpr char kTag[] = "roomhub_ota";
 constexpr std::size_t kBufferBytes = 8192;
+constexpr unsigned int kMaximumEmptyReads = 4;
 std::atomic_bool update_active{false};
 std::atomic_bool update_network_busy{false};
 
@@ -114,13 +115,19 @@ bool install(const UpdateRequest &request)
     mbedtls_sha256_starts(&sha, 0);
     std::size_t received = 0;
     bool okay = buffer != nullptr;
-    unsigned int last_reported_progress = 0;
+    unsigned int empty_reads = 0;
     while (okay && received < request.size) {
         const int count = esp_http_client_read(
             client,
             reinterpret_cast<char *>(buffer.get()),
             kBufferBytes
         );
+        if (count == 0 && !esp_http_client_is_complete_data_received(client)
+            && empty_reads++ < kMaximumEmptyReads) {
+            ESP_LOGW(kTag, "Firmware HTTP read temporarily empty; retrying");
+            vTaskDelay(pdMS_TO_TICKS(250));
+            continue;
+        }
         if (count <= 0) {
             ESP_LOGE(
                 kTag,
@@ -133,6 +140,7 @@ bool install(const UpdateRequest &request)
             okay = false;
             break;
         }
+        empty_reads = 0;
         received += static_cast<std::size_t>(count);
         const esp_err_t write_result = received > request.size
             ? ESP_ERR_INVALID_SIZE : esp_ota_write(ota_handle, buffer.get(), count);
@@ -144,10 +152,6 @@ bool install(const UpdateRequest &request)
         mbedtls_sha256_update(&sha, buffer.get(), count);
         const unsigned int progress = static_cast<unsigned int>((received * 100) / request.size);
         roomhub::board::show_tab5_firmware_updating(progress);
-        if (progress == 100 || progress >= last_reported_progress + 5) {
-            report(request, "downloading", progress);
-            last_reported_progress = progress;
-        }
     }
     std::uint8_t digest[32]{};
     mbedtls_sha256_finish(&sha, digest);
