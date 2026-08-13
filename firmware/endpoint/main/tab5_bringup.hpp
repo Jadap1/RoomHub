@@ -50,7 +50,7 @@ struct MediaPlayer {
 };
 
 using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
-using NotificationAction = void (*)(const char *delivery_id);
+using NotificationAction = void (*)(const char *delivery_id, const char *status);
 
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();
@@ -76,6 +76,8 @@ void show_tab5_notification(
     const std::string &title,
     const std::string &text,
     bool emergency,
+    unsigned int timeout_seconds,
+    bool queue,
     NotificationAction action
 );
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -34,8 +35,18 @@ std::string selected_dashboard_group = "home";
 std::size_t selected_dashboard_page = 0;
 lv_obj_t *media_overlay = nullptr;
 lv_obj_t *notification_overlay = nullptr;
+lv_timer_t *notification_timer = nullptr;
 std::string notification_delivery_id;
 NotificationAction notification_action = nullptr;
+struct PendingNotification {
+    std::string delivery_id;
+    std::string title;
+    std::string text;
+    bool emergency;
+    unsigned int timeout_seconds;
+    NotificationAction action;
+};
+std::deque<PendingNotification> pending_notifications;
 std::size_t selected_media_player = 0;
 constexpr std::size_t kDashboardPageSize = 15;
 
@@ -95,17 +106,41 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
 
 void render_dashboard_content();
 void show_media_overlay();
+void render_notification(const PendingNotification &notification);
 
-void close_notification_overlay(lv_event_t *)
+void finish_notification(const char *status)
 {
-    if (notification_action != nullptr && !notification_delivery_id.empty()) {
-        notification_action(notification_delivery_id.c_str());
+    const std::string delivery_id = notification_delivery_id;
+    NotificationAction action = notification_action;
+    if (notification_timer != nullptr) {
+        lv_timer_delete(notification_timer);
+        notification_timer = nullptr;
     }
     if (notification_overlay != nullptr) {
         lv_obj_delete(notification_overlay);
         notification_overlay = nullptr;
     }
     notification_delivery_id.clear();
+    notification_action = nullptr;
+    if (action != nullptr && !delivery_id.empty()) {
+        action(delivery_id.c_str(), status);
+    }
+    if (!pending_notifications.empty()) {
+        PendingNotification next = std::move(pending_notifications.front());
+        pending_notifications.pop_front();
+        render_notification(next);
+    }
+}
+
+void close_notification_overlay(lv_event_t *)
+{
+    finish_notification("dismissed");
+}
+
+void expire_notification(lv_timer_t *)
+{
+    notification_timer = nullptr;
+    finish_notification("expired");
 }
 
 void on_dashboard_group(lv_event_t *event)
@@ -1051,6 +1086,8 @@ void show_tab5_notification(
     const std::string &title_text,
     const std::string &body_text,
     bool emergency,
+    unsigned int timeout_seconds,
+    bool queue,
     NotificationAction action
 )
 {
@@ -1058,17 +1095,40 @@ void show_tab5_notification(
         return;
     }
     if (notification_overlay != nullptr) {
-        lv_obj_delete(notification_overlay);
+        if (queue) {
+            if (pending_notifications.size() < 8) {
+                pending_notifications.push_back({
+                    delivery_id, title_text, body_text, emergency,
+                    timeout_seconds, action
+                });
+            } else if (action != nullptr) {
+                action(delivery_id.c_str(), "replaced");
+            }
+            bsp_display_unlock();
+            return;
+        }
+        pending_notifications.clear();
+        finish_notification("replaced");
     }
-    notification_delivery_id = delivery_id;
-    notification_action = action;
+    render_notification({
+        delivery_id, title_text, body_text, emergency, timeout_seconds, action
+    });
+    bsp_display_unlock();
+}
+
+namespace {
+
+void render_notification(const PendingNotification &notification)
+{
+    notification_delivery_id = notification.delivery_id;
+    notification_action = notification.action;
     notification_overlay = lv_obj_create(lv_screen_active());
     lv_obj_set_size(notification_overlay, 700, 430);
     lv_obj_center(notification_overlay);
     lv_obj_set_style_bg_color(notification_overlay, lv_color_hex(0x172733), 0);
     lv_obj_set_style_border_color(
         notification_overlay,
-        lv_color_hex(emergency ? 0xe5534b : 0x2bcbba),
+        lv_color_hex(notification.emergency ? 0xe5534b : 0x2bcbba),
         0
     );
     lv_obj_set_style_border_width(notification_overlay, 4, 0);
@@ -1083,10 +1143,10 @@ void show_tab5_notification(
     );
 
     lv_obj_t *title = lv_label_create(notification_overlay);
-    lv_label_set_text(title, title_text.c_str());
+    lv_label_set_text(title, notification.title.c_str());
     lv_obj_set_style_text_color(
         title,
-        lv_color_hex(emergency ? 0xff7b72 : 0x55e6d5),
+        lv_color_hex(notification.emergency ? 0xff7b72 : 0x55e6d5),
         0
     );
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
@@ -1094,7 +1154,7 @@ void show_tab5_notification(
     lv_obj_t *body = lv_label_create(notification_overlay);
     lv_obj_set_width(body, lv_pct(92));
     lv_label_set_long_mode(body, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(body, body_text.c_str());
+    lv_label_set_text(body, notification.text.c_str());
     lv_obj_set_style_text_align(body, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(body, lv_color_hex(0xf2f5f7), 0);
     lv_obj_set_style_text_font(body, LV_FONT_DEFAULT, 0);
@@ -1104,14 +1164,21 @@ void show_tab5_notification(
     lv_obj_set_size(dismiss, 220, 64);
     lv_obj_set_style_bg_color(
         dismiss,
-        lv_color_hex(emergency ? 0xa83b37 : 0x238f83),
+        lv_color_hex(notification.emergency ? 0xa83b37 : 0x238f83),
         0
     );
     lv_obj_add_event_cb(dismiss, close_notification_overlay, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *label = lv_label_create(dismiss);
     lv_label_set_text(label, "Dismiss");
     lv_obj_center(label);
-    bsp_display_unlock();
+    if (notification.timeout_seconds > 0) {
+        notification_timer = lv_timer_create(
+            expire_notification, notification.timeout_seconds * 1000, nullptr
+        );
+        lv_timer_set_repeat_count(notification_timer, 1);
+    }
 }
+
+}  // namespace
 
 }  // namespace roomhub::board

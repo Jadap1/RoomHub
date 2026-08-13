@@ -47,7 +47,8 @@ from endpoint dashboards automatically.
 
 The app publishes `POST /notifications` on port `8000`. Home Assistant
 automations can invoke it with a `rest_command` using `text`, an optional
-`title`, `display` and `speak` booleans, plus exactly one of
+`title`, `display` and `speak` booleans, `timeout_seconds`, a `presentation`
+mode of `replace` or `queue`, plus exactly one of
 `area_id` or `endpoint_id`. RoomHub asks the configured Assist pipeline to
 synthesize Piper speech for speakers and shows a dismissible overlay on
 displays. Normal notifications use the RoomHub accent colour; `emergency`

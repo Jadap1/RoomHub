@@ -100,12 +100,17 @@ rest_command:
       "title": {{ title | default('RoomHub') | tojson }},
       "priority": {{ priority | default('notification') | tojson }},
       "display": {{ display | default(true) | tojson }},
-      "speak": {{ speak | default(true) | tojson }}}
+      "speak": {{ speak | default(true) | tojson }},
+      "timeout_seconds": {{ timeout_seconds | default(0) | int }},
+      "presentation": {{ presentation | default('replace') | tojson }}}
 ```
 
 Set `display: false` for speech-only announcements or `speak: false` for a
 silent visual alert. At least one channel must remain enabled. The RoomHub
 management page also includes a composer with live area and endpoint selectors.
+Use `timeout_seconds: 0` for a persistent alert, or up to `3600` seconds for
+automatic dismissal. `presentation: queue` waits behind the visible alert;
+`replace` supersedes it immediately.
 
 ## Tests
 

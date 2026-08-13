@@ -43,14 +43,15 @@ async def dispatch(message):
 
         return await handle_firmware_status(message)
 
-    elif message_type == "notification.dismissed":
+    elif message_type in {"notification.dismissed", "notification.status"}:
 
         payload = message.get("payload", {})
+        status = payload.get("status", "dismissed")
         notification_service.update_status(
-            payload.get("delivery_id"), message.get("source"), "dismissed",
+            payload.get("delivery_id"), message.get("source"), status,
             channel="visual",
         )
-        return {"status": "dismissed"}
+        return {"status": status}
 
     elif message_type in command_router.commands:
 

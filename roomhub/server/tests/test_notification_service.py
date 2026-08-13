@@ -159,6 +159,40 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             NotificationRequest(text="Test", title=" ", endpoint_id="panel")
 
+    def test_lifecycle_validation(self):
+        request = NotificationRequest(
+            text="Test", endpoint_id="panel", timeout_seconds=30,
+            presentation="queue",
+        )
+        self.assertEqual(request.timeout_seconds, 30)
+        self.assertEqual(request.presentation, "queue")
+        with self.assertRaises(ValueError):
+            NotificationRequest(
+                text="Test", endpoint_id="panel", timeout_seconds=3601
+            )
+        with self.assertRaises(ValueError):
+            NotificationRequest(
+                text="Test", endpoint_id="panel", presentation="unknown"
+            )
+
+    async def test_visual_expiry_is_a_successful_terminal_outcome(self):
+        registry.register(Endpoint(
+            device_id="panel", device_name="Panel", room="Kitchen",
+            area_id="kitchen", capabilities=["display"], connected=True,
+        ))
+        service = NotificationService(tts_factory=FakeTtsClient)
+        with patch(
+            "app.services.notification_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ):
+            delivery = await service.notify(NotificationRequest(
+                text="Test", endpoint_id="panel", timeout_seconds=5
+            ))
+        service.update_status(
+            delivery["delivery_id"], "panel", "expired", channel="visual"
+        )
+        self.assertEqual(service.get(delivery["delivery_id"])["status"], "expired")
+
     async def test_unavailable_target_does_not_synthesize(self):
         tts = AsyncMock()
         service = NotificationService(tts_factory=lambda: tts)

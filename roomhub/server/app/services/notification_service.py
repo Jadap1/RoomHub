@@ -2,7 +2,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..core.connection_manager import manager
 from ..core.registry import registry
@@ -18,6 +18,8 @@ class NotificationRequest(BaseModel):
     priority: str = "notification"
     display: bool = True
     speak: bool = True
+    timeout_seconds: int = Field(default=0, ge=0, le=3600)
+    presentation: str = "replace"
 
     @field_validator("text")
     @classmethod
@@ -44,6 +46,13 @@ class NotificationRequest(BaseModel):
     def validate_priority(cls, value: str) -> str:
         if value not in {"notification", "emergency"}:
             raise ValueError("notification priority must be notification or emergency")
+        return value
+
+    @field_validator("presentation")
+    @classmethod
+    def validate_presentation(cls, value: str) -> str:
+        if value not in {"replace", "queue"}:
+            raise ValueError("notification presentation must be replace or queue")
         return value
 
     @model_validator(mode="after")
@@ -94,6 +103,8 @@ class NotificationService:
             "text": request.text,
             "title": request.title,
             "priority": request.priority,
+            "timeout_seconds": request.timeout_seconds,
+            "presentation": request.presentation,
             "endpoint_id": request.endpoint_id,
             "area_id": request.area_id,
             "created_at": datetime.now(UTC).isoformat(),
@@ -126,6 +137,8 @@ class NotificationService:
                         "title": request.title,
                         "text": request.text,
                         "priority": request.priority,
+                        "timeout_seconds": request.timeout_seconds,
+                        "presentation": request.presentation,
                     },
                 })
         speaker_targets = [
@@ -163,15 +176,18 @@ class NotificationService:
 
     @staticmethod
     def _summarize(delivery: dict) -> None:
-        terminal = {"completed", "dismissed", "interrupted", "failed", "stopped", "not_found"}
+        terminal = {"completed", "dismissed", "expired", "replaced", "interrupted", "failed", "stopped", "not_found"}
         errors = {"interrupted", "failed", "stopped", "not_found"}
         for endpoint_id, channels in delivery["channels"].items():
             statuses = set(channels.values())
             if statuses <= terminal:
                 if statuses & errors:
                     summary = "finished_with_errors"
-                elif "dismissed" in statuses:
-                    summary = "dismissed"
+                elif statuses & {"dismissed", "expired", "replaced"}:
+                    summary = next(
+                        value for value in ("dismissed", "expired", "replaced")
+                        if value in statuses
+                    )
                 else:
                     summary = "completed"
             elif "playing" in statuses:
@@ -183,11 +199,15 @@ class NotificationService:
             delivery["targets"][endpoint_id] = summary
 
         statuses = set(delivery["targets"].values())
-        if statuses <= {"completed", "dismissed", "finished_with_errors"}:
+        successful = {"completed", "dismissed", "expired", "replaced"}
+        if statuses <= successful | {"finished_with_errors"}:
             if "finished_with_errors" in statuses:
                 delivery["status"] = "finished_with_errors"
-            elif "dismissed" in statuses:
-                delivery["status"] = "dismissed"
+            elif statuses & {"dismissed", "expired", "replaced"}:
+                delivery["status"] = next(
+                    value for value in ("dismissed", "expired", "replaced")
+                    if value in statuses
+                )
             else:
                 delivery["status"] = "completed"
         elif "playing" in statuses:

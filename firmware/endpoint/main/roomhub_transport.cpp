@@ -94,13 +94,14 @@ void send_dashboard_action(const char *entity_id, const char *action, int value)
     }
 }
 
-void send_notification_dismissed(const char *delivery_id)
+void send_notification_status(const char *delivery_id, const char *status)
 {
-    if (delivery_id == nullptr || context.client == nullptr) return;
-    cJSON *message = create_message("notification.dismissed", context.endpoint_id);
+    if (delivery_id == nullptr || status == nullptr || context.client == nullptr) return;
+    cJSON *message = create_message("notification.status", context.endpoint_id);
     if (message == nullptr) return;
     cJSON *payload = cJSON_AddObjectToObject(message, "payload");
     cJSON_AddStringToObject(payload, "delivery_id", delivery_id);
+    cJSON_AddStringToObject(payload, "status", status);
     send_text(context.client, print_message(message));
 }
 
@@ -494,6 +495,8 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             const cJSON *title = cJSON_GetObjectItemCaseSensitive(payload, "title");
             const cJSON *text = cJSON_GetObjectItemCaseSensitive(payload, "text");
             const cJSON *priority = cJSON_GetObjectItemCaseSensitive(payload, "priority");
+            const cJSON *timeout = cJSON_GetObjectItemCaseSensitive(payload, "timeout_seconds");
+            const cJSON *presentation = cJSON_GetObjectItemCaseSensitive(payload, "presentation");
             if (cJSON_IsString(delivery_id) && delivery_id->valuestring
                 && cJSON_IsString(title) && title->valuestring
                 && cJSON_IsString(text) && text->valuestring) {
@@ -503,7 +506,11 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                     text->valuestring,
                     cJSON_IsString(priority) && priority->valuestring
                         && std::string(priority->valuestring) == "emergency",
-                    send_notification_dismissed
+                    cJSON_IsNumber(timeout) && timeout->valuedouble > 0
+                        ? static_cast<unsigned int>(timeout->valuedouble) : 0,
+                    cJSON_IsString(presentation) && presentation->valuestring
+                        && std::string(presentation->valuestring) == "queue",
+                    send_notification_status
                 );
             }
         } else if (message_type == "firmware.update") {
