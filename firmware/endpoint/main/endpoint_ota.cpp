@@ -8,6 +8,7 @@
 
 #include "esp_app_desc.h"
 #include "esp_crt_bundle.h"
+#include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
@@ -22,7 +23,9 @@ namespace roomhub::ota {
 namespace {
 
 constexpr char kTag[] = "roomhub_ota";
-constexpr std::size_t kBufferBytes = 8192;
+constexpr std::size_t kHttpBufferBytes = 4096;
+constexpr std::size_t kDownloadBufferBytes = 8192;
+constexpr configSTACK_DEPTH_TYPE kUpdateTaskStackBytes = 6144;
 constexpr unsigned int kMaximumEmptyReads = 4;
 std::atomic_bool update_active{false};
 std::atomic_bool update_network_busy{false};
@@ -72,7 +75,7 @@ bool install(const UpdateRequest &request)
     esp_http_client_config_t config{};
     config.url = request.url.c_str();
     config.timeout_ms = 15000;
-    config.buffer_size = kBufferBytes;
+    config.buffer_size = kHttpBufferBytes;
     config.crt_bundle_attach = esp_crt_bundle_attach;
     esp_http_client_handle_t client = esp_http_client_init(&config);
     const esp_err_t open_result = client == nullptr
@@ -109,18 +112,24 @@ bool install(const UpdateRequest &request)
         return false;
     }
 
-    std::unique_ptr<std::uint8_t[]> buffer(new (std::nothrow) std::uint8_t[kBufferBytes]);
+    auto *buffer = static_cast<std::uint8_t *>(heap_caps_malloc(
+        kDownloadBufferBytes,
+        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT
+    ));
     mbedtls_sha256_context sha{};
     mbedtls_sha256_init(&sha);
     mbedtls_sha256_starts(&sha, 0);
     std::size_t received = 0;
     bool okay = buffer != nullptr;
+    if (buffer == nullptr) {
+        ESP_LOGE(kTag, "Could not allocate the firmware download buffer in PSRAM");
+    }
     unsigned int empty_reads = 0;
     while (okay && received < request.size) {
         const int count = esp_http_client_read(
             client,
-            reinterpret_cast<char *>(buffer.get()),
-            kBufferBytes
+            reinterpret_cast<char *>(buffer),
+            kDownloadBufferBytes
         );
         if (count == 0 && !esp_http_client_is_complete_data_received(client)
             && empty_reads++ < kMaximumEmptyReads) {
@@ -143,19 +152,20 @@ bool install(const UpdateRequest &request)
         empty_reads = 0;
         received += static_cast<std::size_t>(count);
         const esp_err_t write_result = received > request.size
-            ? ESP_ERR_INVALID_SIZE : esp_ota_write(ota_handle, buffer.get(), count);
+            ? ESP_ERR_INVALID_SIZE : esp_ota_write(ota_handle, buffer, count);
         if (write_result != ESP_OK) {
             ESP_LOGE(kTag, "Firmware OTA write failed: %s", esp_err_to_name(write_result));
             okay = false;
             break;
         }
-        mbedtls_sha256_update(&sha, buffer.get(), count);
+        mbedtls_sha256_update(&sha, buffer, count);
         const unsigned int progress = static_cast<unsigned int>((received * 100) / request.size);
         roomhub::board::show_tab5_firmware_updating(progress);
     }
     std::uint8_t digest[32]{};
     mbedtls_sha256_finish(&sha, digest);
     mbedtls_sha256_free(&sha);
+    heap_caps_free(buffer);
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
@@ -197,6 +207,12 @@ void update_task(void *argument)
     // network link is dedicated to the firmware HTTP stream.
     vTaskDelay(pdMS_TO_TICKS(750));
     ESP_LOGI(kTag, "Installing endpoint firmware %s", request->version.c_str());
+    ESP_LOGI(
+        kTag,
+        "OTA internal DMA heap: free=%u largest=%u",
+        static_cast<unsigned int>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA)),
+        static_cast<unsigned int>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA))
+    );
     update_network_busy = true;
     const bool installed = install(*request);
     update_network_busy = false;
@@ -246,7 +262,14 @@ bool start(
     }
     UpdateRequest *task_request = request.release();
     report(*task_request, "accepted", 0);
-    if (xTaskCreate(update_task, "endpoint_ota", 8192, task_request, 5, nullptr) != pdPASS) {
+    if (xTaskCreate(
+            update_task,
+            "endpoint_ota",
+            kUpdateTaskStackBytes,
+            task_request,
+            5,
+            nullptr
+        ) != pdPASS) {
         delete task_request;
         update_active = false;
         return false;
