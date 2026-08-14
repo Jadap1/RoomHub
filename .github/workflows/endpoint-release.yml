@@ -29,7 +29,10 @@ jobs:
 
       - name: Build endpoint
         working-directory: firmware/endpoint
-        run: idf.py build
+        shell: bash
+        run: |
+          source /opt/esp/idf/export.sh
+          idf.py build
 
       - name: Restore protected signing key
         shell: bash
@@ -42,12 +45,14 @@ jobs:
 
       - name: Sign and package release
         working-directory: firmware/endpoint
-        run: >-
-          python tools/package_release.py
-          --key "$RUNNER_TEMP/roomhub-endpoint.pem"
-          --version "${{ steps.version.outputs.version }}"
-          --download-base-url
-          "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+        shell: bash
+        run: |
+          source /opt/esp/idf/export.sh
+          python tools/package_release.py \
+            --key "$RUNNER_TEMP/roomhub-endpoint.pem" \
+            --version "${{ steps.version.outputs.version }}" \
+            --download-base-url \
+            "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
 
       - name: Remove restored signing key
         if: always()
