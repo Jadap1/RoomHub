@@ -876,7 +876,7 @@ void render_dashboard_content()
         lv_obj_t *button = lv_button_create(dashboard_grid);
         lv_obj_set_size(button, 220, 142);
         lv_obj_set_flex_flow(button, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(button, 48, 0);
+        lv_obj_set_style_pad_row(button, 24, 0);
         lv_obj_set_flex_align(
             button,
             LV_FLEX_ALIGN_CENTER,
@@ -923,7 +923,6 @@ void render_dashboard_content()
             0
         );
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
-        lv_obj_set_style_transform_scale(icon, 512, 0);
 
         lv_obj_t *name = lv_label_create(button);
         lv_obj_set_width(name, 190);
