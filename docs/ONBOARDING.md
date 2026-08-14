@@ -130,3 +130,11 @@ The `dist` directory contains:
 
 Build artifacts are not source files and must be attached to the corresponding
 release rather than committed.
+
+Pushing an `endpoint-vX.Y.Z` tag creates a **draft** release only. Download its
+OTA image, publish it to a test RoomHub instance, and confirm that a physical
+Tab5 boots that exact image and reconnects normally. Record the OTA SHA-256,
+then run the **Promote hardware-tested endpoint release** workflow with the tag,
+that hash, and the confirmation word `PUBLISH`. Only this explicit promotion
+makes the release public and updates the browser installer. Never promote a
+different build merely because it has the same semantic version or signing key.

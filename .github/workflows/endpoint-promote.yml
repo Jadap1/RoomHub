@@ -1,0 +1,84 @@
+name: Promote hardware-tested endpoint release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Draft endpoint tag, for example endpoint-v0.7.39
+        required: true
+        type: string
+      hardware_tested_ota_sha256:
+        description: SHA-256 of the exact OTA image installed on real hardware
+        required: true
+        type: string
+      confirmation:
+        description: Enter PUBLISH after the hardware test passes
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Validate explicit promotion request
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          TESTED_SHA256: ${{ inputs.hardware_tested_ota_sha256 }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^endpoint-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$TESTED_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]
+          test "$CONFIRMATION" = "PUBLISH"
+
+      - name: Check out tagged installer source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Download draft release bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh release view "${{ inputs.tag }}" --json isDraft --jq .isDraft)" = "true"
+          mkdir release
+          gh release download "${{ inputs.tag }}" --dir release
+
+      - name: Verify bundle and hardware-tested image identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          TESTED_SHA256: ${{ inputs.hardware_tested_ota_sha256 }}
+        working-directory: release
+        run: |
+          sha256sum --check SHA256SUMS
+          version="${RELEASE_TAG#endpoint-v}"
+          actual="$(sha256sum "roomhub-tab5-${version}-ota.bin" | cut -d' ' -f1)"
+          test "${actual,,}" = "${TESTED_SHA256,,}"
+
+      - name: Publish tested release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ inputs.tag }}" --draft=false
+
+      - name: Assemble installer site
+        run: cp release/manifest.json installer/manifest.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload installer site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: installer
+
+      - name: Deploy installer site
+        id: deployment
+        uses: actions/deploy-pages@v5
