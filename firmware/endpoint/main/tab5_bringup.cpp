@@ -761,6 +761,7 @@ void render_dashboard_content()
             lv_obj_t *group_button = lv_button_create(dashboard_grid);
             lv_obj_set_size(group_button, 280, 220);
             lv_obj_set_flex_flow(group_button, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_style_pad_row(group_button, 28, 0);
             lv_obj_set_flex_align(
                 group_button,
                 LV_FLEX_ALIGN_CENTER,
@@ -776,13 +777,9 @@ void render_dashboard_content()
             lv_obj_t *icon = lv_label_create(group_button);
             lv_label_set_text(icon, group_icons[group_index]);
             lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+            lv_obj_set_style_transform_scale(icon, 512, 0);
             lv_obj_t *label = lv_label_create(group_button);
-            lv_label_set_text_fmt(
-                label,
-                "%s  (%u)",
-                group_labels[group_index],
-                static_cast<unsigned int>(matching_count)
-            );
+            lv_label_set_text(label, group_labels[group_index]);
             style_high_contrast_text(label);
             lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
             lv_obj_add_event_cb(
@@ -795,6 +792,7 @@ void render_dashboard_content()
         microphone_privacy_button = lv_button_create(dashboard_grid);
         lv_obj_set_size(microphone_privacy_button, 280, 220);
         lv_obj_set_flex_flow(microphone_privacy_button, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(microphone_privacy_button, 28, 0);
         lv_obj_set_flex_align(
             microphone_privacy_button,
             LV_FLEX_ALIGN_CENTER,
@@ -804,6 +802,7 @@ void render_dashboard_content()
         lv_obj_set_style_radius(microphone_privacy_button, 22, 0);
         microphone_privacy_icon = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_transform_scale(microphone_privacy_icon, 512, 0);
         microphone_privacy_label = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_align(microphone_privacy_label, LV_TEXT_ALIGN_CENTER, 0);
         style_high_contrast_text(microphone_privacy_label);
@@ -877,6 +876,7 @@ void render_dashboard_content()
         lv_obj_t *button = lv_button_create(dashboard_grid);
         lv_obj_set_size(button, 220, 142);
         lv_obj_set_flex_flow(button, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(button, 24, 0);
         lv_obj_set_flex_align(
             button,
             LV_FLEX_ALIGN_CENTER,
@@ -923,6 +923,7 @@ void render_dashboard_content()
             0
         );
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_transform_scale(icon, 512, 0);
 
         lv_obj_t *name = lv_label_create(button);
         lv_obj_set_width(name, 190);
