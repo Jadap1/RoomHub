@@ -39,6 +39,7 @@ from .services.endpoint_control_service import (
     EndpointControlRequest,
     endpoint_control_service,
 )
+from .services.intercom_service import intercom_service
 from .services.camera_snapshot_service import (
     CameraSnapshotTimeout,
     CameraSnapshotUnavailable,
@@ -369,7 +370,12 @@ def create_app(
 
                 binary = event.get("bytes")
                 if binary is not None:
-                    response = await audio.send_audio(binary)
+                    response = (
+                        await intercom_service.send_audio(endpoint_id, binary)
+                        if endpoint_id is not None
+                        and intercom_service.is_transmitting(endpoint_id)
+                        else await audio.send_audio(binary)
+                    )
                     if response is not None:
                         await websocket.send_json(response)
                     continue
@@ -399,6 +405,39 @@ def create_app(
                         endpoint_id,
                         message.get("payload", {}).get("firmware_version"),
                     )
+                elif (
+                    isinstance(message_type, str)
+                    and message_type.startswith("intercom.")
+                ):
+                    if endpoint_id is None:
+                        response = {
+                            "version": "1.0",
+                            "type": "intercom.rejected",
+                            "payload": {"reason": "endpoint_not_registered"},
+                        }
+                    elif message.get("source") not in (None, endpoint_id):
+                        response = {
+                            "version": "1.0",
+                            "type": "intercom.rejected",
+                            "payload": {"reason": "source_mismatch"},
+                        }
+                    elif message_type == "intercom.start":
+                        response = await intercom_service.start(
+                            endpoint_id, message.get("payload") or {}
+                        )
+                    elif message_type in {"intercom.end", "intercom.cancel"}:
+                        response = await intercom_service.stop(
+                            endpoint_id,
+                            "cancelled"
+                            if message_type == "intercom.cancel"
+                            else "completed",
+                        )
+                    else:
+                        response = {
+                            "version": "1.0",
+                            "type": "intercom.rejected",
+                            "payload": {"reason": "unknown_intercom_message"},
+                        }
                 elif (
                     isinstance(message_type, str)
                     and message_type.startswith("voice.audio.")
@@ -442,6 +481,7 @@ def create_app(
                     response = await dispatch(message)
                 await websocket.send_json(response)
                 if message_type == "endpoint.register" and endpoint_id is not None:
+                    await intercom_service.broadcast_targets(endpoint_id)
                     await firmware_deployment_service.retry_after_registration(
                         endpoint_id,
                         message.get("payload", {}).get("firmware_version"),
@@ -452,10 +492,12 @@ def create_app(
         finally:
             await audio.close()
             if endpoint_id:
+                await intercom_service.close_endpoint(endpoint_id)
                 if manager.disconnect(endpoint_id, websocket):
                     endpoint = registry.get(endpoint_id)
                     if endpoint:
                         endpoint.connected = False
+                    await intercom_service.broadcast_targets()
 
     @app.post("/test/display/{endpoint_id}")
     async def test_display(endpoint_id: str):

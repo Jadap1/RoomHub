@@ -3,6 +3,7 @@ from ..services.room_dashboard_service import room_dashboard_service
 from ..services.endpoint_dashboard_preferences_service import (
     endpoint_dashboard_preferences_service,
 )
+from ..services.intercom_service import intercom_service
 
 
 async def handle_endpoint_register(message):
@@ -29,5 +30,6 @@ async def handle_endpoint_register(message):
                     endpoint.device_id
                 ),
             ),
+            "intercom_targets": intercom_service.targets(endpoint.device_id),
         }
     }
