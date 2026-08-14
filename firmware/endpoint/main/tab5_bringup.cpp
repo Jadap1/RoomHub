@@ -61,12 +61,12 @@ constexpr std::size_t kDashboardPageSize = 15;
 constexpr uint32_t kPrimaryTextColor = 0xf7fafc;
 constexpr uint32_t kSecondaryTextColor = 0xcbd5df;
 
-void style_readable_label(lv_obj_t *label, bool prominent = false)
+void style_readable_label(lv_obj_t *label, bool = false)
 {
     lv_obj_set_style_text_color(label, lv_color_hex(kPrimaryTextColor), 0);
     lv_obj_set_style_text_font(
         label,
-        prominent ? &lv_font_montserrat_28 : &lv_font_montserrat_20,
+        &lv_font_montserrat_28,
         0
     );
 }
@@ -74,7 +74,7 @@ void style_readable_label(lv_obj_t *label, bool prominent = false)
 void style_readable_button(lv_obj_t *button)
 {
     lv_obj_set_style_text_color(button, lv_color_hex(kPrimaryTextColor), 0);
-    lv_obj_set_style_text_font(button, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(button, &lv_font_montserrat_28, 0);
 }
 
 bool entity_matches_group(const DashboardEntity &entity, const std::string &group)
@@ -563,7 +563,7 @@ void show_media_overlay()
             player.media_artist.empty() ? player.source.c_str() : player.media_artist.c_str()
         );
         lv_obj_set_style_text_color(artist, lv_color_hex(kSecondaryTextColor), 0);
-        lv_obj_set_style_text_font(artist, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_font(artist, &lv_font_montserrat_28, 0);
         lv_obj_t *transport = lv_obj_create(media_overlay);
         lv_obj_set_size(transport, 520, 90);
         lv_obj_set_style_bg_opa(transport, LV_OPA_TRANSP, 0);
@@ -669,7 +669,7 @@ void create_status_screen(
     dashboard_area = lv_label_create(header);
     lv_label_set_text(dashboard_area, "Unassigned");
     lv_obj_set_style_text_color(dashboard_area, lv_color_hex(0xf2f5f7), 0);
-    lv_obj_set_style_text_font(dashboard_area, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(dashboard_area, &lv_font_montserrat_28, 0);
 
     lv_obj_t *indicators = lv_obj_create(header);
     lv_obj_set_size(indicators, 220, 48);
@@ -793,7 +793,7 @@ void render_dashboard_content()
             lv_obj_set_style_radius(group_button, 22, 0);
             lv_obj_t *icon = lv_label_create(group_button);
             lv_label_set_text(icon, group_icons[group_index]);
-            lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+            lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
             lv_obj_t *label = lv_label_create(group_button);
             lv_label_set_text_fmt(
                 label,
@@ -821,7 +821,7 @@ void render_dashboard_content()
         );
         lv_obj_set_style_radius(microphone_privacy_button, 22, 0);
         microphone_privacy_icon = lv_label_create(microphone_privacy_button);
-        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_28, 0);
         microphone_privacy_label = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_align(microphone_privacy_label, LV_TEXT_ALIGN_CENTER, 0);
         style_readable_label(microphone_privacy_label);
@@ -940,14 +940,14 @@ void render_dashboard_content()
             lv_color_hex(entity.available ? 0xffffff : 0xb0bac4),
             0
         );
-        lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
 
         lv_obj_t *name = lv_label_create(button);
         lv_obj_set_width(name, 190);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(name, lv_color_hex(kPrimaryTextColor), 0);
-        lv_obj_set_style_text_font(name, &lv_font_montserrat_20, 0);
+        lv_obj_set_style_text_font(name, &lv_font_montserrat_28, 0);
         lv_label_set_text(name, entity.name.c_str());
         if (entity.actionable) {
             lv_obj_add_event_cb(
@@ -1314,7 +1314,7 @@ void render_notification(const PendingNotification &notification)
     lv_obj_set_style_text_align(body, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(body, lv_color_hex(0xf2f5f7), 0);
     lv_obj_set_style_text_font(body, LV_FONT_DEFAULT, 0);
-    lv_obj_set_style_text_font(body, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(body, &lv_font_montserrat_28, 0);
     lv_obj_set_flex_grow(body, 1);
 
     lv_obj_t *controls = lv_obj_create(notification_overlay);
