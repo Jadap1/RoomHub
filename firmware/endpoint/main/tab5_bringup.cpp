@@ -58,6 +58,24 @@ struct PendingNotification {
 std::deque<PendingNotification> pending_notifications;
 std::size_t selected_media_player = 0;
 constexpr std::size_t kDashboardPageSize = 15;
+constexpr uint32_t kPrimaryTextColor = 0xf7fafc;
+constexpr uint32_t kSecondaryTextColor = 0xcbd5df;
+
+void style_readable_label(lv_obj_t *label, bool prominent = false)
+{
+    lv_obj_set_style_text_color(label, lv_color_hex(kPrimaryTextColor), 0);
+    lv_obj_set_style_text_font(
+        label,
+        prominent ? &lv_font_montserrat_28 : &lv_font_montserrat_20,
+        0
+    );
+}
+
+void style_readable_button(lv_obj_t *button)
+{
+    lv_obj_set_style_text_color(button, lv_color_hex(kPrimaryTextColor), 0);
+    lv_obj_set_style_text_font(button, &lv_font_montserrat_20, 0);
+}
 
 bool entity_matches_group(const DashboardEntity &entity, const std::string &group)
 {
@@ -252,6 +270,7 @@ void add_control_button(lv_obj_t *parent, const char *label_text, const char *ac
 {
     lv_obj_t *button = lv_button_create(parent);
     lv_obj_set_size(button, 118, 80);
+    style_readable_button(button);
     lv_obj_t *label = lv_label_create(button);
     lv_label_set_text(label, label_text);
     lv_obj_center(label);
@@ -303,7 +322,9 @@ void show_control_overlay(const DashboardEntity &entity)
 
     lv_obj_t *title = lv_label_create(control_overlay);
     lv_label_set_text(title, entity.name.c_str());
+    style_readable_label(title, true);
     lv_obj_t *detail = lv_label_create(control_overlay);
+    style_readable_label(detail);
     if (entity.entity_type == "climate" && entity.has_current_temperature
         && entity.has_target_temperature) {
         lv_label_set_text_fmt(
@@ -327,6 +348,7 @@ void show_control_overlay(const DashboardEntity &entity)
         lv_obj_t *mode = lv_label_create(control_overlay);
         const std::string mode_text = "Mode: " + entity.state;
         lv_label_set_text(mode, mode_text.c_str());
+        style_readable_label(mode);
     }
 
     lv_obj_t *controls = lv_obj_create(control_overlay);
@@ -375,6 +397,7 @@ void show_control_overlay(const DashboardEntity &entity)
 
     lv_obj_t *close = lv_button_create(control_overlay);
     lv_obj_set_size(close, 180, 64);
+    style_readable_button(close);
     lv_obj_t *close_label = lv_label_create(close);
     lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
     lv_obj_center(close_label);
@@ -427,6 +450,7 @@ void add_media_button(lv_obj_t *parent, const char *label_text, const char *acti
 {
     lv_obj_t *button = lv_button_create(parent);
     lv_obj_set_size(button, 118, 72);
+    style_readable_button(button);
     lv_obj_t *label = lv_label_create(button);
     lv_label_set_text(label, label_text);
     lv_obj_center(label);
@@ -485,9 +509,11 @@ void show_media_overlay()
     );
     lv_obj_t *heading = lv_label_create(media_overlay);
     lv_label_set_text(heading, LV_SYMBOL_AUDIO " Room media");
+    style_readable_label(heading, true);
     if (room_media_players.empty()) {
         lv_obj_t *empty = lv_label_create(media_overlay);
         lv_label_set_text(empty, "No visible media players in this area");
+        style_readable_label(empty);
     } else {
         if (selected_media_player >= room_media_players.size()) {
             selected_media_player = 0;
@@ -506,6 +532,7 @@ void show_media_overlay()
         for (std::size_t index = 0; index < room_media_players.size(); ++index) {
             lv_obj_t *button = lv_button_create(players);
             lv_obj_set_height(button, 42);
+            style_readable_button(button);
             lv_obj_set_style_bg_color(
                 button,
                 lv_color_hex(index == selected_media_player ? 0x75579b : 0x34495e),
@@ -529,11 +556,14 @@ void show_media_overlay()
         const std::string title = player.media_title.empty()
             ? player.state : player.media_title;
         lv_label_set_text(track, title.c_str());
+        style_readable_label(track);
         lv_obj_t *artist = lv_label_create(media_overlay);
         lv_label_set_text(
             artist,
             player.media_artist.empty() ? player.source.c_str() : player.media_artist.c_str()
         );
+        lv_obj_set_style_text_color(artist, lv_color_hex(kSecondaryTextColor), 0);
+        lv_obj_set_style_text_font(artist, &lv_font_montserrat_20, 0);
         lv_obj_t *transport = lv_obj_create(media_overlay);
         lv_obj_set_size(transport, 520, 90);
         lv_obj_set_style_bg_opa(transport, LV_OPA_TRANSP, 0);
@@ -565,6 +595,7 @@ void show_media_overlay()
         );
         lv_obj_t *volume_icon = lv_label_create(volume_row);
         lv_label_set_text(volume_icon, LV_SYMBOL_VOLUME_MAX);
+        style_readable_label(volume_icon, true);
         lv_obj_t *volume = lv_slider_create(volume_row);
         lv_obj_set_size(volume, 410, 24);
         lv_slider_set_range(volume, 0, 100);
@@ -572,6 +603,7 @@ void show_media_overlay()
         lv_obj_add_event_cb(volume, send_media_volume, LV_EVENT_RELEASED, nullptr);
         lv_obj_t *source = lv_button_create(media_overlay);
         lv_obj_set_size(source, 260, 48);
+        style_readable_button(source);
         lv_obj_t *source_label = lv_label_create(source);
         const std::string source_text = player.source.empty()
             ? "Next source" : "Source: " + player.source;
@@ -586,6 +618,7 @@ void show_media_overlay()
     }
     lv_obj_t *close = lv_button_create(media_overlay);
     lv_obj_set_size(close, 160, 50);
+    style_readable_button(close);
     lv_obj_t *close_label = lv_label_create(close);
     lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
     lv_obj_center(close_label);
@@ -636,6 +669,7 @@ void create_status_screen(
     dashboard_area = lv_label_create(header);
     lv_label_set_text(dashboard_area, "Unassigned");
     lv_obj_set_style_text_color(dashboard_area, lv_color_hex(0xf2f5f7), 0);
+    lv_obj_set_style_text_font(dashboard_area, &lv_font_montserrat_20, 0);
 
     lv_obj_t *indicators = lv_obj_create(header);
     lv_obj_set_size(indicators, 220, 48);
@@ -647,14 +681,17 @@ void create_status_screen(
     wireless_status = lv_label_create(indicators);
     lv_label_set_text(wireless_status, LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(wireless_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_set_style_text_font(wireless_status, &lv_font_montserrat_28, 0);
 
     roomhub_status = lv_label_create(indicators);
     lv_label_set_text(roomhub_status, LV_SYMBOL_HOME);
     lv_obj_set_style_text_color(roomhub_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_set_style_text_font(roomhub_status, &lv_font_montserrat_28, 0);
 
     wake_word_status = lv_label_create(indicators);
     lv_label_set_text(wake_word_status, LV_SYMBOL_AUDIO);
     lv_obj_set_style_text_color(wake_word_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_set_style_text_font(wake_word_status, &lv_font_montserrat_28, 0);
 
     dashboard_tabs = lv_obj_create(panel);
     lv_obj_set_size(dashboard_tabs, lv_pct(100), 44);
@@ -740,6 +777,7 @@ void render_dashboard_content()
             }
             lv_obj_t *group_button = lv_button_create(dashboard_grid);
             lv_obj_set_size(group_button, 280, 220);
+            style_readable_button(group_button);
             lv_obj_set_flex_flow(group_button, LV_FLEX_FLOW_COLUMN);
             lv_obj_set_flex_align(
                 group_button,
@@ -755,7 +793,7 @@ void render_dashboard_content()
             lv_obj_set_style_radius(group_button, 22, 0);
             lv_obj_t *icon = lv_label_create(group_button);
             lv_label_set_text(icon, group_icons[group_index]);
-            lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
+            lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
             lv_obj_t *label = lv_label_create(group_button);
             lv_label_set_text_fmt(
                 label,
@@ -763,6 +801,7 @@ void render_dashboard_content()
                 group_labels[group_index],
                 static_cast<unsigned int>(matching_count)
             );
+            style_readable_label(label);
             lv_obj_add_event_cb(
                 group_button,
                 on_dashboard_group,
@@ -772,6 +811,7 @@ void render_dashboard_content()
         }
         microphone_privacy_button = lv_button_create(dashboard_grid);
         lv_obj_set_size(microphone_privacy_button, 280, 220);
+        style_readable_button(microphone_privacy_button);
         lv_obj_set_flex_flow(microphone_privacy_button, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(
             microphone_privacy_button,
@@ -781,9 +821,10 @@ void render_dashboard_content()
         );
         lv_obj_set_style_radius(microphone_privacy_button, 22, 0);
         microphone_privacy_icon = lv_label_create(microphone_privacy_button);
-        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_36, 0);
         microphone_privacy_label = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_align(microphone_privacy_label, LV_TEXT_ALIGN_CENTER, 0);
+        style_readable_label(microphone_privacy_label);
         update_microphone_privacy_tile();
         lv_obj_add_event_cb(
             microphone_privacy_button, on_microphone_tile, LV_EVENT_CLICKED, nullptr
@@ -791,6 +832,7 @@ void render_dashboard_content()
         if (dashboard_entities.empty()) {
             lv_obj_t *empty = lv_label_create(dashboard_grid);
             lv_label_set_text(empty, "No supported entities in this area");
+            style_readable_label(empty);
         }
         return;
     }
@@ -810,6 +852,7 @@ void render_dashboard_content()
     lv_obj_set_height(home, 36);
     lv_obj_set_style_pad_hor(home, 16, 0);
     lv_obj_set_style_bg_color(home, lv_color_hex(0x238f83), 0);
+    style_readable_button(home);
     lv_obj_t *home_label = lv_label_create(home);
     lv_label_set_text(home_label, LV_SYMBOL_HOME " Groups");
     lv_obj_center(home_label);
@@ -828,6 +871,7 @@ void render_dashboard_content()
     lv_obj_t *group_title = lv_label_create(dashboard_tabs);
     lv_obj_set_width(group_title, 220);
     lv_obj_set_style_text_align(group_title, LV_TEXT_ALIGN_CENTER, 0);
+    style_readable_label(group_title);
     lv_label_set_text(group_title, selected_label);
 
     const auto indices = dashboard_indices_for_group(selected_dashboard_group);
@@ -842,12 +886,14 @@ void render_dashboard_content()
     if (indices.empty()) {
         lv_obj_t *empty = lv_label_create(dashboard_grid);
         lv_label_set_text(empty, "No entities in this group");
+        style_readable_label(empty);
     }
     for (std::size_t visible_index = first; visible_index < last; ++visible_index) {
         const std::size_t index = indices[visible_index];
         const auto &entity = dashboard_entities[index];
         lv_obj_t *button = lv_button_create(dashboard_grid);
         lv_obj_set_size(button, 220, 142);
+        style_readable_button(button);
         lv_obj_set_flex_flow(button, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(
             button,
@@ -894,12 +940,14 @@ void render_dashboard_content()
             lv_color_hex(entity.available ? 0xffffff : 0xb0bac4),
             0
         );
-        lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
 
         lv_obj_t *name = lv_label_create(button);
         lv_obj_set_width(name, 190);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_color(name, lv_color_hex(kPrimaryTextColor), 0);
+        lv_obj_set_style_text_font(name, &lv_font_montserrat_20, 0);
         lv_label_set_text(name, entity.name.c_str());
         if (entity.actionable) {
             lv_obj_add_event_cb(
@@ -915,6 +963,7 @@ void render_dashboard_content()
         lv_obj_remove_flag(dashboard_pager, LV_OBJ_FLAG_HIDDEN);
         lv_obj_t *previous = lv_button_create(dashboard_pager);
         lv_obj_set_size(previous, 54, 34);
+        style_readable_button(previous);
         if (selected_dashboard_page == 0) {
             lv_obj_add_state(previous, LV_STATE_DISABLED);
         }
@@ -931,6 +980,7 @@ void render_dashboard_content()
         lv_obj_t *page_label = lv_label_create(dashboard_pager);
         lv_obj_set_width(page_label, 100);
         lv_obj_set_style_text_align(page_label, LV_TEXT_ALIGN_CENTER, 0);
+        style_readable_label(page_label);
         lv_label_set_text_fmt(
             page_label,
             "%u / %u",
@@ -940,6 +990,7 @@ void render_dashboard_content()
 
         lv_obj_t *next = lv_button_create(dashboard_pager);
         lv_obj_set_size(next, 54, 34);
+        style_readable_button(next);
         if (selected_dashboard_page + 1 >= page_count) {
             lv_obj_add_state(next, LV_STATE_DISABLED);
         }
@@ -1263,6 +1314,7 @@ void render_notification(const PendingNotification &notification)
     lv_obj_set_style_text_align(body, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(body, lv_color_hex(0xf2f5f7), 0);
     lv_obj_set_style_text_font(body, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_font(body, &lv_font_montserrat_20, 0);
     lv_obj_set_flex_grow(body, 1);
 
     lv_obj_t *controls = lv_obj_create(notification_overlay);
@@ -1279,6 +1331,7 @@ void render_notification(const PendingNotification &notification)
         const auto &button = notification_buttons.items[index];
         lv_obj_t *action_button = lv_button_create(controls);
         lv_obj_set_size(action_button, 190, 64);
+        style_readable_button(action_button);
         lv_obj_set_style_bg_color(action_button, lv_color_hex(0x75579b), 0);
         lv_obj_add_event_cb(
             action_button, activate_notification_button, LV_EVENT_CLICKED,
@@ -1290,6 +1343,7 @@ void render_notification(const PendingNotification &notification)
     }
     lv_obj_t *dismiss = lv_button_create(controls);
     lv_obj_set_size(dismiss, 220, 64);
+    style_readable_button(dismiss);
     lv_obj_set_style_bg_color(
         dismiss,
         lv_color_hex(notification.emergency ? 0xa83b37 : 0x238f83),
