@@ -425,6 +425,10 @@ def create_app(
                         response = await intercom_service.start(
                             endpoint_id, message.get("payload") or {}
                         )
+                    elif message_type == "intercom.status":
+                        response = await intercom_service.target_status(
+                            endpoint_id, message.get("payload") or {}
+                        )
                     elif message_type in {"intercom.end", "intercom.cancel"}:
                         response = await intercom_service.stop(
                             endpoint_id,

@@ -50,8 +50,15 @@ struct MediaPlayer {
     int volume_percent = 0;
 };
 
+struct IntercomTarget {
+    std::string endpoint_id;
+    std::string name;
+    std::string room;
+};
+
 using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
 using MicrophoneMuteAction = void (*)();
+using IntercomAction = bool (*)(const char *target_endpoint_id, bool start);
 using NotificationAction = void (*)(const char *delivery_id, const char *status);
 using NotificationButtonAction = void (*)(
     const char *delivery_id, const char *entity_id
@@ -89,6 +96,12 @@ void show_tab5_dashboard(
     const std::vector<MediaPlayer> &media_players,
     DashboardAction action
 );
+void show_tab5_intercom_targets(
+    const std::vector<IntercomTarget> &targets,
+    IntercomAction action
+);
+void show_tab5_intercom_incoming(const std::string &source_room);
+void show_tab5_intercom_ended();
 void show_tab5_notification(
     const std::string &delivery_id,
     const std::string &title,

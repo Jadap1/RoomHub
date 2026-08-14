@@ -3,7 +3,9 @@
 #include <array>
 #include <algorithm>
 #include <atomic>
+#include <limits>
 
+#include "bsp/m5stack_tab5.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -35,6 +37,7 @@ std::atomic_uint32_t playing_priority{0};
 std::atomic_bool cancel_requested{false};
 std::atomic_bool service_started{false};
 std::atomic_int output_volume{65};
+std::atomic_bool intercom_receive_active{false};
 AudioEventCallback event_callback = nullptr;
 
 Record *find_record(std::uint32_t token)
@@ -136,6 +139,71 @@ void set_tab5_output_volume(int volume)
 int tab5_output_volume()
 {
     return output_volume.load();
+}
+
+bool start_tab5_intercom_receive()
+{
+    if (!service_started || intercom_receive_active.exchange(true)) {
+        return false;
+    }
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        intercom_receive_active = false;
+        return false;
+    }
+    if (playing_token.load() != 0) {
+        xSemaphoreGive(mutex);
+        intercom_receive_active = false;
+        return false;
+    }
+    playing_token = std::numeric_limits<std::uint32_t>::max();
+    playing_priority = static_cast<std::uint8_t>(
+        roomhub::audio::Priority::intercom
+    );
+    xSemaphoreGive(mutex);
+
+    esp_codec_dev_sample_info_t format{};
+    format.sample_rate = 16000;
+    format.channel = 1;
+    format.bits_per_sample = 16;
+    const bool opened = bsp_feature_enable(BSP_FEATURE_SPEAKER, true) == ESP_OK
+        && esp_codec_dev_open(speaker_handle, &format) == ESP_CODEC_DEV_OK
+        && esp_codec_dev_set_out_vol(
+            speaker_handle,
+            std::clamp(output_volume.load(), 0, 100)
+        ) == ESP_CODEC_DEV_OK;
+    if (!opened) {
+        stop_tab5_intercom_receive();
+        ESP_LOGE(kTag, "Could not open the live intercom speaker stream");
+        return false;
+    }
+    ESP_LOGI(kTag, "Live intercom speaker stream started");
+    return true;
+}
+
+bool play_tab5_intercom_pcm(const std::uint8_t *data, std::size_t byte_count)
+{
+    return intercom_receive_active && data != nullptr && byte_count > 0
+        && byte_count % sizeof(std::int16_t) == 0
+        && esp_codec_dev_write(
+            speaker_handle,
+            const_cast<std::uint8_t *>(data),
+            static_cast<int>(byte_count)
+        ) == ESP_CODEC_DEV_OK;
+}
+
+void stop_tab5_intercom_receive()
+{
+    if (!intercom_receive_active.exchange(false)) {
+        return;
+    }
+    esp_codec_dev_close(speaker_handle);
+    bsp_feature_enable(BSP_FEATURE_SPEAKER, false);
+    if (mutex != nullptr && xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        playing_token = 0;
+        playing_priority = 0;
+        xSemaphoreGive(mutex);
+    }
+    ESP_LOGI(kTag, "Live intercom speaker stream stopped");
 }
 
 bool start_tab5_audio_service(esp_codec_dev_handle_t speaker)

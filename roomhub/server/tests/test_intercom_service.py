@@ -79,6 +79,20 @@ class IntercomServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(send.await_args.args[0], "source")
         self.assertEqual(send.await_args.args[1]["payload"]["reason"], "peer_disconnected")
 
+    async def test_target_can_reject_when_speaker_is_busy(self):
+        with patch.object(manager, "send", new=AsyncMock(return_value=True)) as send:
+            await self.service.start("source", {
+                "target_endpoint_id": "target", "sample_rate": 16000,
+                "channels": 1, "format": "pcm_s16le",
+            })
+            response = await self.service.target_status(
+                "target", {"status": "rejected"}
+            )
+        self.assertEqual(response["payload"]["status"], "rejected")
+        self.assertEqual(send.await_args.args[0], "source")
+        self.assertEqual(send.await_args.args[1]["type"], "intercom.rejected")
+        self.assertFalse(self.service.is_transmitting("source"))
+
 
 if __name__ == "__main__":
     unittest.main()

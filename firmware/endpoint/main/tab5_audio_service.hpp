@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -30,5 +31,8 @@ bool tab5_audio_output_active();
 void interrupt_tab5_audio_for_voice_capture();
 void set_tab5_output_volume(int volume);
 int tab5_output_volume();
+bool start_tab5_intercom_receive();
+bool play_tab5_intercom_pcm(const std::uint8_t *data, std::size_t byte_count);
+void stop_tab5_intercom_receive();
 
 }  // namespace roomhub::board

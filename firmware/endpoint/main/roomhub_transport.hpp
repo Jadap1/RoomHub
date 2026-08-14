@@ -29,6 +29,11 @@ bool start_voice_audio();
 bool send_voice_audio(const std::int16_t *samples, std::size_t byte_count);
 bool end_voice_audio();
 bool cancel_voice_audio();
+bool start_intercom_audio(const std::string &target_endpoint_id);
+bool send_intercom_audio(const std::int16_t *samples, std::size_t byte_count);
+bool end_intercom_audio();
+bool cancel_intercom_audio();
+bool intercom_transmitting();
 VoiceResponseState voice_response_state();
 VoiceResponse take_voice_response();
 

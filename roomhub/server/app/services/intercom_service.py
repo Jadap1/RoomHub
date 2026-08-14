@@ -121,6 +121,36 @@ class IntercomService:
             return self._rejected("target_unavailable")
         return None
 
+    async def target_status(
+        self,
+        target_id: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        session = self._endpoint_sessions.get(target_id)
+        if session is None or session.target_id != target_id:
+            return self._rejected("no_incoming_session")
+        status = payload.get("status")
+        if status == "accepted":
+            return _message("intercom.status.ack", status="accepted")
+        self._release(session)
+        await manager.send(session.source_id, self._rejected("target_busy"))
+        return _message("intercom.status.ack", status="rejected")
+
+    async def target_status(
+        self,
+        target_id: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        session = self._endpoint_sessions.get(target_id)
+        if session is None or session.target_id != target_id:
+            return self._rejected("no_incoming_session")
+        status = payload.get("status")
+        if status == "accepted":
+            return _message("intercom.status.ack", status="accepted")
+        self._release(session)
+        await manager.send(session.source_id, self._rejected("target_busy"))
+        return _message("intercom.status.ack", status="rejected")
+
     async def stop(self, source_id: str, reason: str = "completed") -> dict[str, Any]:
         session = self._by_source.get(source_id)
         if session is None:

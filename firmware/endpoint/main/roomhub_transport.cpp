@@ -34,6 +34,8 @@ constexpr EventBits_t kVoiceAudioReady = BIT3;
 constexpr EventBits_t kVoiceResponseReady = BIT4;
 constexpr EventBits_t kVoiceFailed = BIT5;
 constexpr EventBits_t kClientStopped = BIT6;
+constexpr EventBits_t kIntercomReady = BIT7;
+constexpr EventBits_t kIntercomFailed = BIT8;
 constexpr std::size_t kMaximumAudioFrameBytes = 1024;
 constexpr std::size_t kMaximumAudioBatchBytes = 8192;
 constexpr std::size_t kAudioStreamBufferBytes = 384000;
@@ -47,6 +49,10 @@ struct TransportContext {
     std::atomic_bool network_audio_allowed{false};
     std::atomic_bool voice_end_pending{false};
     std::atomic_bool voice_cancel_pending{false};
+    std::atomic_bool intercom_audio_allowed{false};
+    std::atomic_bool intercom_end_pending{false};
+    std::atomic_bool intercom_cancel_pending{false};
+    std::atomic_bool intercom_receiving{false};
     std::atomic_bool reconnect_pending{false};
     std::atomic_bool restart_in_progress{false};
     std::atomic_uint32_t restart_delay_ms{0};
@@ -108,6 +114,15 @@ void send_dashboard_action(const char *entity_id, const char *action, int value)
     if (!send_text(context.client, print_message(message))) {
         ESP_LOGW(kTag, "Could not send dashboard action for %s", entity_id);
     }
+}
+
+bool send_intercom_action(const char *target_endpoint_id, bool start)
+{
+    if (start) {
+        return target_endpoint_id != nullptr
+            && roomhub::transport::start_intercom_audio(target_endpoint_id);
+    }
+    return roomhub::transport::end_intercom_audio();
 }
 
 void send_notification_status(const char *delivery_id, const char *status)
@@ -303,6 +318,31 @@ void show_dashboard_payload(const cJSON *payload)
     );
 }
 
+void show_intercom_targets_payload(const cJSON *items)
+{
+    if (!cJSON_IsArray(items)) return;
+    std::vector<roomhub::board::IntercomTarget> targets;
+    const cJSON *item = nullptr;
+    cJSON_ArrayForEach(item, items) {
+        const cJSON *endpoint_id = cJSON_GetObjectItemCaseSensitive(
+            item, "endpoint_id"
+        );
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
+        const cJSON *room = cJSON_GetObjectItemCaseSensitive(item, "room");
+        if (!cJSON_IsString(endpoint_id) || !endpoint_id->valuestring
+            || !cJSON_IsString(name) || !name->valuestring
+            || !cJSON_IsString(room) || !room->valuestring) {
+            continue;
+        }
+        targets.push_back({
+            .endpoint_id = endpoint_id->valuestring,
+            .name = name->valuestring,
+            .room = room->valuestring,
+        });
+    }
+    roomhub::board::show_tab5_intercom_targets(targets, send_intercom_action);
+}
+
 std::string websocket_url(const std::string &roomhub_url)
 {
     std::string result;
@@ -391,9 +431,14 @@ std::string heartbeat_message(
         "privacy_state",
         roomhub::board::tab5_microphone_muted()
             ? "microphone_muted"
-            : (network_audio_allowed ? "capturing_command" : "waiting_for_wake_word")
+            : ((network_audio_allowed || context.intercom_audio_allowed)
+                ? "capturing_audio" : "waiting_for_wake_word")
     );
-    cJSON_AddBoolToObject(payload, "network_audio_allowed", network_audio_allowed);
+    cJSON_AddBoolToObject(
+        payload,
+        "network_audio_allowed",
+        network_audio_allowed || context.intercom_audio_allowed
+    );
     cJSON *controls = cJSON_AddObjectToObject(payload, "controls");
     cJSON_AddBoolToObject(controls, "screen_on", screen_on.load());
     cJSON_AddNumberToObject(
@@ -421,6 +466,40 @@ std::string voice_audio_message(
         cJSON_AddNumberToObject(payload, "channels", 1);
         cJSON_AddStringToObject(payload, "format", "pcm_s16le");
     }
+    return print_message(message);
+}
+
+std::string intercom_message(
+    const char *type,
+    const std::string &endpoint_id,
+    const std::string &target_endpoint_id = {}
+)
+{
+    cJSON *message = create_message(type, endpoint_id);
+    if (message == nullptr) return {};
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    if (!target_endpoint_id.empty()) {
+        cJSON_AddStringToObject(
+            payload, "target_endpoint_id", target_endpoint_id.c_str()
+        );
+        cJSON_AddNumberToObject(payload, "sample_rate", 16000);
+        cJSON_AddNumberToObject(payload, "channels", 1);
+        cJSON_AddStringToObject(payload, "format", "pcm_s16le");
+    }
+    return print_message(message);
+}
+
+std::string intercom_status_message(
+    const std::string &endpoint_id,
+    bool accepted
+)
+{
+    cJSON *message = create_message("intercom.status", endpoint_id);
+    if (message == nullptr) return {};
+    cJSON *payload = cJSON_AddObjectToObject(message, "payload");
+    cJSON_AddStringToObject(
+        payload, "status", accepted ? "accepted" : "rejected"
+    );
     return print_message(message);
 }
 
@@ -520,6 +599,15 @@ bool send_text(
 
 void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
 {
+    if (data.op_code == 0x02 && transport.intercom_receiving) {
+        if (!roomhub::board::play_tab5_intercom_pcm(
+                reinterpret_cast<const std::uint8_t *>(data.data_ptr),
+                static_cast<std::size_t>(data.data_len)
+            )) {
+            ESP_LOGW(kTag, "Could not render an incoming intercom audio frame");
+        }
+        return;
+    }
     if (data.op_code != 0x01
         || data.payload_offset != 0
         || data.data_len != data.payload_len) {
@@ -543,8 +631,22 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                     ? cJSON_GetObjectItemCaseSensitive(payload, "dashboard")
                     : nullptr
             );
+            show_intercom_targets_payload(
+                cJSON_IsObject(payload)
+                    ? cJSON_GetObjectItemCaseSensitive(
+                        payload, "intercom_targets"
+                    )
+                    : nullptr
+            );
         } else if (message_type == "room.dashboard") {
             show_dashboard_payload(cJSON_GetObjectItemCaseSensitive(message, "payload"));
+        } else if (message_type == "intercom.targets") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            show_intercom_targets_payload(
+                cJSON_IsObject(payload)
+                    ? cJSON_GetObjectItemCaseSensitive(payload, "targets")
+                    : nullptr
+            );
         } else if (message_type == "notification.show") {
             const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             const cJSON *delivery_id = cJSON_GetObjectItemCaseSensitive(payload, "delivery_id");
@@ -662,6 +764,8 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                     + update_path;
                 transport.network_audio_allowed = false;
                 transport.voice_cancel_pending = true;
+                transport.intercom_audio_allowed = false;
+                transport.intercom_cancel_pending = true;
                 xEventGroupClearBits(transport.events, kVoiceAudioReady);
                 if (!roomhub::ota::start(
                     request_id->valuestring,
@@ -694,6 +798,48 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             xEventGroupClearBits(transport.events, kVoiceAudioReady);
             xEventGroupSetBits(transport.events, kVoiceFailed);
             ESP_LOGW(kTag, "RoomHub rejected or failed the voice audio stream");
+        } else if (message_type == "intercom.ready") {
+            transport.intercom_audio_allowed = true;
+            xEventGroupClearBits(transport.events, kIntercomFailed);
+            xEventGroupSetBits(transport.events, kIntercomReady);
+            ESP_LOGI(kTag, "RoomHub intercom stream is ready");
+        } else if (message_type == "intercom.incoming") {
+            transport.intercom_receiving = roomhub::board::start_tab5_intercom_receive();
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            const cJSON *source_room = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "source_room")
+                : nullptr;
+            if (transport.intercom_receiving) {
+                roomhub::board::show_tab5_intercom_incoming(
+                    cJSON_IsString(source_room) && source_room->valuestring
+                        ? source_room->valuestring : "another room"
+                );
+            }
+            send_text(
+                transport.client,
+                intercom_status_message(
+                    transport.endpoint_id,
+                    transport.intercom_receiving
+                )
+            );
+            ESP_LOGI(
+                kTag,
+                "Incoming intercom stream %s",
+                transport.intercom_receiving ? "accepted" : "rejected"
+            );
+        } else if (message_type == "intercom.ended") {
+            transport.intercom_audio_allowed = false;
+            xEventGroupClearBits(transport.events, kIntercomReady);
+            if (transport.intercom_receiving.exchange(false)) {
+                roomhub::board::stop_tab5_intercom_receive();
+                roomhub::board::show_tab5_intercom_ended();
+            }
+            ESP_LOGI(kTag, "Intercom stream ended");
+        } else if (message_type == "intercom.rejected") {
+            transport.intercom_audio_allowed = false;
+            xEventGroupClearBits(transport.events, kIntercomReady);
+            xEventGroupSetBits(transport.events, kIntercomFailed);
+            ESP_LOGW(kTag, "RoomHub rejected the intercom stream");
         } else if (message_type.rfind("voice.intent.", 0) == 0) {
             transport.network_audio_allowed = false;
             const cJSON *payload = cJSON_GetObjectItemCaseSensitive(
@@ -799,6 +945,13 @@ void websocket_event_handler(
         }
         xEventGroupClearBits(transport.events, kConnected | kRegistered);
         transport.network_audio_allowed = false;
+        transport.intercom_audio_allowed = false;
+        transport.intercom_end_pending = false;
+        transport.intercom_cancel_pending = false;
+        if (transport.intercom_receiving.exchange(false)) {
+            roomhub::board::stop_tab5_intercom_receive();
+            roomhub::board::show_tab5_intercom_ended();
+        }
         xEventGroupClearBits(transport.events, kVoiceAudioReady);
         xEventGroupSetBits(transport.events, kFailed | kVoiceFailed);
         xEventGroupSetBits(transport.events, kClientStopped);
@@ -902,6 +1055,13 @@ void fail_voice_stream(TransportContext &transport)
     xEventGroupSetBits(transport.events, kVoiceFailed);
 }
 
+void fail_intercom_stream(TransportContext &transport)
+{
+    transport.intercom_audio_allowed = false;
+    xEventGroupClearBits(transport.events, kIntercomReady);
+    xEventGroupSetBits(transport.events, kIntercomFailed);
+}
+
 void voice_sender_task(void *argument)
 {
     auto &transport = *static_cast<TransportContext *>(argument);
@@ -917,6 +1077,17 @@ void voice_sender_task(void *argument)
     }
 
     while (true) {
+        if (transport.intercom_cancel_pending.exchange(false)) {
+            xStreamBufferReset(transport.voice_audio_stream);
+            transport.intercom_end_pending = false;
+            if (!send_text(
+                    transport.client,
+                    intercom_message("intercom.cancel", transport.endpoint_id)
+                )) {
+                fail_intercom_stream(transport);
+            }
+            continue;
+        }
         if (transport.voice_cancel_pending.exchange(false)) {
             xStreamBufferReset(transport.voice_audio_stream);
             transport.voice_end_pending = false;
@@ -950,11 +1121,24 @@ void voice_sender_task(void *argument)
                 ESP_LOGW(kTag, "Could not send buffered voice audio data");
                 xStreamBufferReset(transport.voice_audio_stream);
                 fail_voice_stream(transport);
+                fail_intercom_stream(transport);
             }
             continue;
         }
 
         if (
+            transport.intercom_end_pending.exchange(false)
+            && xStreamBufferBytesAvailable(transport.voice_audio_stream) == 0
+        ) {
+            transport.intercom_audio_allowed = false;
+            xEventGroupClearBits(transport.events, kIntercomReady);
+            if (!send_text(
+                    transport.client,
+                    intercom_message("intercom.end", transport.endpoint_id)
+                )) {
+                fail_intercom_stream(transport);
+            }
+        } else if (
             transport.voice_end_pending.exchange(false)
             && xStreamBufferBytesAvailable(transport.voice_audio_stream) == 0
         ) {
@@ -1194,6 +1378,66 @@ bool cancel_voice_audio()
     xEventGroupClearBits(context.events, kVoiceAudioReady);
     context.voice_cancel_pending = true;
     return context.voice_audio_stream != nullptr && voice_transport_ready();
+}
+
+bool start_intercom_audio(const std::string &target_endpoint_id)
+{
+    if (!voice_transport_ready() || target_endpoint_id.empty()
+        || roomhub::board::tab5_microphone_muted()) {
+        return false;
+    }
+    context.intercom_audio_allowed = false;
+    context.intercom_end_pending = false;
+    context.intercom_cancel_pending = false;
+    xStreamBufferReset(context.voice_audio_stream);
+    xEventGroupClearBits(context.events, kIntercomReady | kIntercomFailed);
+    if (!send_text(
+            context.client,
+            intercom_message(
+                "intercom.start", context.endpoint_id, target_endpoint_id
+            )
+        )) {
+        return false;
+    }
+    const EventBits_t state = xEventGroupWaitBits(
+        context.events,
+        kIntercomReady | kIntercomFailed,
+        pdFALSE,
+        pdFALSE,
+        pdMS_TO_TICKS(5000)
+    );
+    return (state & kIntercomReady) != 0;
+}
+
+bool send_intercom_audio(const std::int16_t *samples, std::size_t byte_count)
+{
+    if (samples == nullptr || byte_count == 0
+        || byte_count > kMaximumAudioFrameBytes
+        || !context.intercom_audio_allowed) {
+        return false;
+    }
+    return xStreamBufferSend(
+        context.voice_audio_stream, samples, byte_count, 0
+    ) == byte_count;
+}
+
+bool end_intercom_audio()
+{
+    if (!context.intercom_audio_allowed.exchange(false)) return false;
+    context.intercom_end_pending = true;
+    return true;
+}
+
+bool cancel_intercom_audio()
+{
+    context.intercom_audio_allowed = false;
+    context.intercom_cancel_pending = true;
+    return context.voice_audio_stream != nullptr;
+}
+
+bool intercom_transmitting()
+{
+    return context.intercom_audio_allowed.load();
 }
 
 VoiceResponseState voice_response_state()

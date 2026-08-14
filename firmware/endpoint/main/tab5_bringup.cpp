@@ -31,7 +31,9 @@ lv_obj_t *microphone_privacy_label = nullptr;
 std::vector<std::string> dashboard_entity_ids;
 std::vector<DashboardEntity> dashboard_entities;
 std::vector<MediaPlayer> room_media_players;
+std::vector<IntercomTarget> intercom_targets;
 DashboardAction dashboard_action = nullptr;
+IntercomAction intercom_action = nullptr;
 MicrophoneMuteAction microphone_mute_action = nullptr;
 bool microphone_is_muted = false;
 lv_obj_t *control_overlay = nullptr;
@@ -39,6 +41,8 @@ std::string selected_control_id;
 std::string selected_dashboard_group = "home";
 std::size_t selected_dashboard_page = 0;
 lv_obj_t *media_overlay = nullptr;
+lv_obj_t *intercom_overlay = nullptr;
+lv_obj_t *intercom_status_label = nullptr;
 lv_obj_t *notification_overlay = nullptr;
 lv_timer_t *notification_timer = nullptr;
 std::string notification_delivery_id;
@@ -121,6 +125,7 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
 
 void render_dashboard_content();
 void show_media_overlay();
+void show_intercom_overlay();
 void render_notification(const PendingNotification &notification);
 
 void update_microphone_privacy_tile()
@@ -202,6 +207,10 @@ void on_dashboard_group(lv_event_t *event)
     }
     if (std::string(group) == "media") {
         show_media_overlay();
+        return;
+    }
+    if (std::string(group) == "intercom") {
+        show_intercom_overlay();
         return;
     }
     selected_dashboard_group = group;
@@ -418,6 +427,115 @@ void close_media_overlay(lv_event_t *)
         lv_obj_delete(media_overlay);
         media_overlay = nullptr;
     }
+}
+
+void close_intercom_overlay(lv_event_t *)
+{
+    if (intercom_overlay != nullptr) {
+        lv_obj_delete(intercom_overlay);
+        intercom_overlay = nullptr;
+        intercom_status_label = nullptr;
+    }
+}
+
+void intercom_press(lv_event_t *event)
+{
+    const std::size_t index = reinterpret_cast<std::size_t>(
+        lv_event_get_user_data(event)
+    );
+    if (intercom_action == nullptr || index >= intercom_targets.size()) return;
+    const bool started = intercom_action(
+        intercom_targets[index].endpoint_id.c_str(), true
+    );
+    if (intercom_status_label != nullptr) {
+        lv_label_set_text(
+            intercom_status_label,
+            started ? "Transmitting - release to stop" : "Room unavailable"
+        );
+        lv_obj_set_style_text_color(
+            intercom_status_label,
+            lv_color_hex(started ? 0x2bcbba : 0xe55039),
+            0
+        );
+    }
+}
+
+void intercom_release(lv_event_t *)
+{
+    if (intercom_action != nullptr) intercom_action(nullptr, false);
+    if (intercom_status_label != nullptr) {
+        lv_label_set_text(intercom_status_label, "Hold a room button to talk");
+        style_high_contrast_text(intercom_status_label);
+    }
+}
+
+void show_intercom_overlay()
+{
+    if (intercom_overlay != nullptr) return;
+    intercom_overlay = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(intercom_overlay, 650, 650);
+    lv_obj_center(intercom_overlay);
+    lv_obj_set_style_bg_color(intercom_overlay, lv_color_hex(0x172733), 0);
+    lv_obj_set_style_border_color(intercom_overlay, lv_color_hex(0x2bcbba), 0);
+    lv_obj_set_style_border_width(intercom_overlay, 2, 0);
+    lv_obj_set_style_radius(intercom_overlay, 22, 0);
+    lv_obj_set_flex_flow(intercom_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        intercom_overlay,
+        LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+
+    lv_obj_t *title = lv_label_create(intercom_overlay);
+    lv_label_set_text(title, LV_SYMBOL_AUDIO " Room Intercom");
+    style_high_contrast_text(title);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
+    intercom_status_label = lv_label_create(intercom_overlay);
+    lv_label_set_text(
+        intercom_status_label,
+        intercom_targets.empty()
+            ? "No other RoomHub endpoints online"
+            : "Hold a room button to talk"
+    );
+    style_high_contrast_text(intercom_status_label);
+
+    lv_obj_t *rooms = lv_obj_create(intercom_overlay);
+    lv_obj_set_size(rooms, 590, 400);
+    lv_obj_set_style_bg_opa(rooms, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(rooms, 0, 0);
+    lv_obj_set_flex_flow(rooms, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(
+        rooms, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START
+    );
+    for (std::size_t index = 0; index < intercom_targets.size(); ++index) {
+        lv_obj_t *button = lv_button_create(rooms);
+        lv_obj_set_size(button, 260, 120);
+        lv_obj_set_style_bg_color(button, lv_color_hex(0x416b7b), 0);
+        lv_obj_t *label = lv_label_create(button);
+        lv_obj_set_width(label, 230);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(label, intercom_targets[index].room.c_str());
+        style_high_contrast_text(label);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+        lv_obj_center(label);
+        lv_obj_add_event_cb(
+            button,
+            intercom_press,
+            LV_EVENT_PRESSED,
+            reinterpret_cast<void *>(index)
+        );
+        lv_obj_add_event_cb(button, intercom_release, LV_EVENT_RELEASED, nullptr);
+        lv_obj_add_event_cb(button, intercom_release, LV_EVENT_PRESS_LOST, nullptr);
+    }
+
+    lv_obj_t *close = lv_button_create(intercom_overlay);
+    lv_obj_set_size(close, 180, 64);
+    lv_obj_t *close_label = lv_label_create(close);
+    lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
+    style_high_contrast_text(close_label);
+    lv_obj_center(close_label);
+    lv_obj_add_event_cb(close, close_intercom_overlay, LV_EVENT_CLICKED, nullptr);
 }
 
 void send_media_action(lv_event_t *event)
@@ -738,23 +856,27 @@ void render_dashboard_content()
         lv_obj_add_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(dashboard_pager, LV_OBJ_FLAG_HIDDEN);
         const char *group_ids[] = {
-            "favourites", "light", "switch", "climate", "cover", "actions", "media"
+            "favourites", "light", "switch", "climate", "cover", "actions", "media",
+            "intercom"
         };
         const char *group_labels[] = {
-            "Favourites", "Lights", "Switches", "Climate", "Covers", "Actions", "Media"
+            "Favourites", "Lights", "Switches", "Climate", "Covers", "Actions", "Media",
+            "Intercom"
         };
         const char *group_icons[] = {
             "*", LV_SYMBOL_CHARGE, LV_SYMBOL_POWER, LV_SYMBOL_TINT,
-            LV_SYMBOL_BARS, LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO
+            LV_SYMBOL_BARS, LV_SYMBOL_PLAY, LV_SYMBOL_AUDIO, LV_SYMBOL_CALL
         };
         const uint32_t group_colors[] = {
             0x8a6b27, 0xa87324, 0x238f83, 0x416b7b,
-            0x596fa3, 0x75579b, 0x7b4f78
+            0x596fa3, 0x75579b, 0x7b4f78, 0x286b78
         };
-        for (std::size_t group_index = 0; group_index < 7; ++group_index) {
+        for (std::size_t group_index = 0; group_index < 8; ++group_index) {
             const auto matching = dashboard_indices_for_group(group_ids[group_index]);
-            const std::size_t matching_count = std::string(group_ids[group_index]) == "media"
-                ? room_media_players.size() : matching.size();
+            const std::string group_id(group_ids[group_index]);
+            const std::size_t matching_count = group_id == "media"
+                ? room_media_players.size()
+                : (group_id == "intercom" ? 1 : matching.size());
             if (matching_count == 0) {
                 continue;
             }
@@ -1211,6 +1333,57 @@ void show_tab5_dashboard(
     }
     lv_label_set_text(dashboard_area, area_name.c_str());
     render_dashboard_content();
+    bsp_display_unlock();
+}
+
+void show_tab5_intercom_targets(
+    const std::vector<IntercomTarget> &targets,
+    IntercomAction action
+)
+{
+    if (dashboard_grid == nullptr || !bsp_display_lock(0)) return;
+    if (intercom_overlay != nullptr) close_intercom_overlay(nullptr);
+    intercom_targets = targets;
+    intercom_action = action;
+    if (selected_dashboard_group == "home") render_dashboard_content();
+    bsp_display_unlock();
+}
+
+void show_tab5_intercom_incoming(const std::string &source_room)
+{
+    if (!bsp_display_lock(0)) return;
+    if (intercom_overlay != nullptr) close_intercom_overlay(nullptr);
+    intercom_overlay = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(intercom_overlay, 650, 360);
+    lv_obj_center(intercom_overlay);
+    lv_obj_set_style_bg_color(intercom_overlay, lv_color_hex(0x286b78), 0);
+    lv_obj_set_style_border_color(intercom_overlay, lv_color_hex(0x2bcbba), 0);
+    lv_obj_set_style_border_width(intercom_overlay, 3, 0);
+    lv_obj_set_style_radius(intercom_overlay, 22, 0);
+    lv_obj_set_flex_flow(intercom_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        intercom_overlay,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
+    lv_obj_set_style_pad_row(intercom_overlay, 40, 0);
+    lv_obj_t *icon = lv_label_create(intercom_overlay);
+    lv_label_set_text(icon, LV_SYMBOL_AUDIO);
+    lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+    lv_obj_set_style_transform_scale(icon, 512, 0);
+    lv_obj_t *label = lv_label_create(intercom_overlay);
+    const std::string text = "Receiving from " + source_room;
+    lv_label_set_text(label, text.c_str());
+    style_high_contrast_text(label);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+    bsp_display_unlock();
+}
+
+void show_tab5_intercom_ended()
+{
+    if (!bsp_display_lock(0)) return;
+    close_intercom_overlay(nullptr);
     bsp_display_unlock();
 }
 

@@ -135,6 +135,19 @@ void wake_word_fetch_task(void *)
             break;
         }
         if (
+            roomhub::transport::intercom_transmitting()
+            && !microphone_muted
+        ) {
+            if (!roomhub::transport::send_intercom_audio(
+                    result->data,
+                    static_cast<std::size_t>(result->data_size)
+                )) {
+                roomhub::transport::cancel_intercom_audio();
+                restore_private_listening_state();
+            }
+            continue;
+        }
+        if (
             result->wakeup_state == WAKENET_DETECTED
             && !microphone_muted
             && voice_session->state()
@@ -376,6 +389,7 @@ void set_tab5_microphone_muted(bool muted)
     if (muted) {
         if (voice_session != nullptr) {
             roomhub::transport::cancel_voice_audio();
+            roomhub::transport::cancel_intercom_audio();
             voice_session->on_failure();
         }
         show_tab5_microphone_muted();
