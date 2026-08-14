@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "bsp/m5stack_tab5.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -38,6 +39,9 @@ std::atomic_bool cancel_requested{false};
 std::atomic_bool service_started{false};
 std::atomic_int output_volume{65};
 std::atomic_bool intercom_receive_active{false};
+std::int16_t *intercom_pcm_buffer = nullptr;
+constexpr std::size_t kMaximumIntercomFrameBytes = 8192;
+constexpr std::int32_t kIntercomReceiveGain = 3;
 AudioEventCallback event_callback = nullptr;
 
 Record *find_record(std::uint32_t token)
@@ -155,6 +159,15 @@ bool start_tab5_intercom_receive()
         intercom_receive_active = false;
         return false;
     }
+    intercom_pcm_buffer = static_cast<std::int16_t *>(heap_caps_malloc(
+        kMaximumIntercomFrameBytes,
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT
+    ));
+    if (intercom_pcm_buffer == nullptr) {
+        xSemaphoreGive(mutex);
+        intercom_receive_active = false;
+        return false;
+    }
     playing_token = std::numeric_limits<std::uint32_t>::max();
     playing_priority = static_cast<std::uint8_t>(
         roomhub::audio::Priority::intercom
@@ -182,13 +195,28 @@ bool start_tab5_intercom_receive()
 
 bool play_tab5_intercom_pcm(const std::uint8_t *data, std::size_t byte_count)
 {
-    return intercom_receive_active && data != nullptr && byte_count > 0
-        && byte_count % sizeof(std::int16_t) == 0
-        && esp_codec_dev_write(
-            speaker_handle,
-            const_cast<std::uint8_t *>(data),
-            static_cast<int>(byte_count)
-        ) == ESP_CODEC_DEV_OK;
+    if (!intercom_receive_active || intercom_pcm_buffer == nullptr
+        || data == nullptr || byte_count == 0
+        || byte_count > kMaximumIntercomFrameBytes
+        || byte_count % sizeof(std::int16_t) != 0) {
+        return false;
+    }
+    const auto *samples = reinterpret_cast<const std::int16_t *>(data);
+    const std::size_t sample_count = byte_count / sizeof(std::int16_t);
+    for (std::size_t index = 0; index < sample_count; ++index) {
+        const std::int32_t amplified =
+            static_cast<std::int32_t>(samples[index]) * kIntercomReceiveGain;
+        intercom_pcm_buffer[index] = static_cast<std::int16_t>(std::clamp(
+            amplified,
+            static_cast<std::int32_t>(std::numeric_limits<std::int16_t>::min()),
+            static_cast<std::int32_t>(std::numeric_limits<std::int16_t>::max())
+        ));
+    }
+    return esp_codec_dev_write(
+        speaker_handle,
+        intercom_pcm_buffer,
+        static_cast<int>(byte_count)
+    ) == ESP_CODEC_DEV_OK;
 }
 
 void stop_tab5_intercom_receive()
@@ -198,6 +226,8 @@ void stop_tab5_intercom_receive()
     }
     esp_codec_dev_close(speaker_handle);
     bsp_feature_enable(BSP_FEATURE_SPEAKER, false);
+    heap_caps_free(intercom_pcm_buffer);
+    intercom_pcm_buffer = nullptr;
     if (mutex != nullptr && xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         playing_token = 0;
         playing_priority = 0;
