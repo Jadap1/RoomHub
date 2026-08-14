@@ -110,7 +110,7 @@ esp_err_t initialize_storage()
 
 bool is_valid(const EndpointConfig &config)
 {
-    const bool valid_url = (
+    const bool valid_url = config.roomhub_url.empty() || (
         has_prefix(config.roomhub_url, "http://")
         || has_prefix(config.roomhub_url, "https://")
     );

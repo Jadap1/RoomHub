@@ -18,6 +18,12 @@ The integration normally uses the Supervisor-internal URL
 `http://cf9aeebe-roomhub:8000`. A physical endpoint must instead use the Home
 Assistant host's LAN URL, such as `http://192.168.1.20:8000`.
 
+During endpoint provisioning, leave the RoomHub URL blank to discover the
+standard `homeassistant.local` mDNS host automatically. Networks with a custom
+Home Assistant hostname, isolated multicast, or disabled mDNS should use the
+explicit LAN URL instead. Endpoint authentication uses a fresh HMAC challenge,
+so the provisioned device credential is never transmitted over Wi-Fi.
+
 The Assist pipeline must include the desired speech-to-text and text-to-speech
 providers. Do not configure a Home Assistant wake-word stage: the endpoint
 detects **Jarvis** locally and streams only post-wake command audio.

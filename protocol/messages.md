@@ -6,6 +6,28 @@ Messages related to device registration and status.
 
 ---
 
+# endpoint.challenge
+
+Direction: Core to Endpoint
+
+Purpose:
+
+Supplies a fresh registration nonce immediately after the WebSocket opens.
+Authenticated endpoints calculate `device_proof` as lowercase hexadecimal
+HMAC-SHA256 over `nonce + ":" + device_id`. The HMAC key is the SHA-256 digest
+of the USB-provisioned pairing credential. The credential itself is never sent
+over Wi-Fi.
+
+```json
+{
+  "version": "1.0",
+  "type": "endpoint.challenge",
+  "payload": {"nonce": "fresh-unpredictable-value"}
+}
+```
+
+---
+
 # endpoint.register
 
 Direction:
@@ -25,6 +47,7 @@ Example:
     "device_id": "kitchen-panel",
     "device_name": "Kitchen Panel",
     "room": "Kitchen",
+    "device_proof": "64-lowercase-hexadecimal-characters",
     "capabilities": [
       "display",
       "speaker",
@@ -33,6 +56,10 @@ Example:
   }
 }
 ```
+
+RoomHub rejects unassigned endpoints without a valid proof. A valid unused
+pairing credential is consumed and bound to the submitted device ID. Subsequent
+connections must answer each fresh challenge using that same credential.
 
 ---
 

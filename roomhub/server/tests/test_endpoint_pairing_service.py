@@ -5,7 +5,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.core import database
-from app.services.endpoint_pairing_service import EndpointPairingService
+from app.services.endpoint_pairing_service import (
+    EndpointPairingService,
+    device_proof,
+)
 
 
 class EndpointPairingServiceTests(unittest.TestCase):
@@ -17,21 +20,23 @@ class EndpointPairingServiceTests(unittest.TestCase):
             service = EndpointPairingService()
             created = service.create("Kitchen Display", "kitchen")
             token = created["pairing_token"]
+            nonce = "server-challenge"
+            proof = device_proof(token, nonce, "tab5-a1b2c3")
 
-            paired = service.authenticate("tab5-a1b2c3", token)
+            paired = service.authenticate("tab5-a1b2c3", proof, nonce)
             self.assertTrue(paired.accepted)
             self.assertEqual(paired.reason, "paired")
             self.assertEqual(paired.device_name, "Kitchen Display")
             self.assertEqual(paired.area_id, "kitchen")
 
             self.assertFalse(
-                service.authenticate("different-endpoint", token).accepted
+                service.authenticate("different-endpoint", proof, nonce).accepted
             )
             self.assertTrue(
-                service.authenticate("tab5-a1b2c3", token).accepted
+                service.authenticate("tab5-a1b2c3", proof, nonce).accepted
             )
             self.assertFalse(
-                service.authenticate("tab5-a1b2c3", "wrong-token").accepted
+                service.authenticate("tab5-a1b2c3", "0" * 64, nonce).accepted
             )
 
     def test_unassigned_endpoint_requires_pairing(self):
@@ -39,7 +44,9 @@ class EndpointPairingServiceTests(unittest.TestCase):
             database, "DATABASE", Path(directory) / "roomhub.db"
         ):
             database.initialise_database()
-            result = EndpointPairingService().authenticate("unknown", None)
+            result = EndpointPairingService().authenticate(
+                "unknown", None, "nonce"
+            )
             self.assertFalse(result.accepted)
             self.assertEqual(result.reason, "pairing_required")
 
@@ -53,7 +60,9 @@ class EndpointPairingServiceTests(unittest.TestCase):
                     "INSERT INTO endpoint_assignments VALUES (?, ?)",
                     ("existing", "bedroom"),
                 )
-            result = EndpointPairingService().authenticate("existing", None)
+            result = EndpointPairingService().authenticate(
+                "existing", None, "nonce"
+            )
             self.assertTrue(result.accepted)
             self.assertTrue(result.legacy)
 

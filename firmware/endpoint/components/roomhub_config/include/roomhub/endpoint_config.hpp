@@ -13,6 +13,7 @@ inline constexpr std::size_t kMaximumWifiSsidLength = 32;
 inline constexpr std::size_t kMaximumWifiPasswordLength = 64;
 inline constexpr std::size_t kMaximumDeviceTokenLength = 128;
 inline constexpr std::size_t kMaximumAreaIdLength = 64;
+inline constexpr char kDefaultRoomHubUrl[] = "http://homeassistant.local:8000";
 
 struct EndpointConfig {
     std::string endpoint_id;

@@ -14,7 +14,10 @@ from app.events.entity_events import (
     AreaDiscoveredEvent,
     DeviceDiscoveredEvent,
 )
-from app.services.endpoint_pairing_service import endpoint_pairing_service
+from app.services.endpoint_pairing_service import (
+    device_proof,
+    endpoint_pairing_service,
+)
 
 
 class FakeConnector:
@@ -211,9 +214,11 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
             database_path = Path(directory) / "roomhub.db"
             connector = FakeConnector()
             FakeVoiceAudioConnection.instances.clear()
+            nonce = "test-registration-nonce"
 
             with (
                 patch.object(database, "DATABASE", database_path),
+                patch("app.app_factory.secrets.token_urlsafe", return_value=nonce),
                 patch(
                     "app.app_factory.VoiceAudioConnection",
                     FakeVoiceAudioConnection,
@@ -237,7 +242,11 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
                                 "device_name": "Kitchen Panel",
                                 "room": "Kitchen",
                                 "capabilities": ["microphone"],
-                                "device_token": pairing["pairing_token"],
+                                "device_proof": device_proof(
+                                    pairing["pairing_token"],
+                                    nonce,
+                                    "kitchen-panel",
+                                ),
                             },
                         }),
                     },
@@ -291,5 +300,9 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
             ]
             self.assertEqual(
                 [response["type"] for response in responses],
-                ["endpoint.registered", "voice.intent.accepted"],
+                [
+                    "endpoint.challenge",
+                    "endpoint.registered",
+                    "voice.intent.accepted",
+                ],
             )

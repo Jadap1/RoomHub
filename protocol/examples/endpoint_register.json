@@ -9,6 +9,7 @@
     "device_id": "kitchen-panel",
     "device_name": "Kitchen Panel",
     "room": "Kitchen",
+    "device_proof": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "capabilities": [
       "display",
       "touch",

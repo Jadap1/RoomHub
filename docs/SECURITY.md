@@ -22,6 +22,13 @@ Provisioning tools must prompt for Wi-Fi passwords without echoing them. Do not
 accept passwords on a command line because command histories and process lists
 can expose them.
 
+The endpoint pairing credential is transferred only over the local USB
+provisioning connection. RoomHub stores its SHA-256 digest. WebSocket
+registration uses a fresh nonce and HMAC-SHA256 proof, so the credential is not
+placed in network messages. Plain HTTP/WebSocket traffic can still be observed
+or relayed by an attacker with access to the local network; use a trusted device
+network or an HTTPS/WSS reverse proxy where that threat is relevant.
+
 ## Firmware signing
 
 Release OTA and factory images are signed by the project release key. Store the

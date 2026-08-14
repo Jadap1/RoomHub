@@ -46,6 +46,14 @@ extern "C" void app_main(void)
         if (config_result.status == roomhub::config::LoadStatus::ready) {
             endpoint_provisioned = true;
             endpoint_config = config_result.config;
+            if (endpoint_config.roomhub_url.empty()) {
+                endpoint_config.roomhub_url =
+                    roomhub::config::kDefaultRoomHubUrl;
+                ESP_LOGI(
+                    kTag,
+                    "Using Home Assistant mDNS discovery for RoomHub"
+                );
+            }
             ESP_LOGI(kTag, "Endpoint configuration loaded");
         } else if (
             config_result.status == roomhub::config::LoadStatus::not_provisioned

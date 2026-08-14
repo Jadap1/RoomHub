@@ -38,7 +38,9 @@
       <label for="endpoint-name">Device name</label>
       <input id="endpoint-name" required maxlength="64" placeholder="Kitchen display">
       <label for="roomhub-url">RoomHub LAN URL</label>
-      <input id="roomhub-url" required type="url" placeholder="http://192.168.1.20:8000">
+      <input id="roomhub-url" type="url" placeholder="Automatic: http://homeassistant.local:8000">
+      <p>Leave this blank for automatic Home Assistant mDNS discovery. Enter a
+         LAN URL only if your network does not resolve <code>homeassistant.local</code>.</p>
       <label for="device-token">Pairing credential</label>
       <input id="device-token" required type="password" autocomplete="off">
       <label for="wifi-ssid">Wi-Fi network</label>

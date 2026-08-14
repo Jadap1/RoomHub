@@ -1,7 +1,9 @@
 #include "roomhub_transport.hpp"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -17,6 +19,7 @@
 #include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
 #include "freertos/task.h"
+#include "mbedtls/md.h"
 #include "roomhub/recovery_backoff.hpp"
 #include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
@@ -36,6 +39,7 @@ constexpr EventBits_t kVoiceFailed = BIT5;
 constexpr EventBits_t kClientStopped = BIT6;
 constexpr EventBits_t kIntercomReady = BIT7;
 constexpr EventBits_t kIntercomFailed = BIT8;
+constexpr EventBits_t kChallengeReady = BIT9;
 constexpr std::size_t kMaximumAudioFrameBytes = 1024;
 constexpr std::size_t kMaximumAudioBatchBytes = 8192;
 constexpr std::size_t kAudioStreamBufferBytes = 384000;
@@ -45,6 +49,8 @@ struct TransportContext {
     esp_websocket_client_handle_t client = nullptr;
     std::string endpoint_id;
     std::string roomhub_url;
+    std::string area_id;
+    std::string device_token;
     std::string registration;
     std::atomic_bool network_audio_allowed{false};
     std::atomic_bool voice_end_pending{false};
@@ -385,10 +391,56 @@ std::string print_message(cJSON *message)
     return result;
 }
 
+std::string registration_proof(
+    const std::string &device_token,
+    const std::string &nonce,
+    const std::string &endpoint_id
+)
+{
+    if (device_token.empty() || nonce.empty() || endpoint_id.empty()) {
+        return {};
+    }
+    const mbedtls_md_info_t *sha256 = mbedtls_md_info_from_type(
+        MBEDTLS_MD_SHA256
+    );
+    if (sha256 == nullptr) {
+        return {};
+    }
+    std::array<unsigned char, 32> key{};
+    std::array<unsigned char, 32> digest{};
+    if (mbedtls_md(
+            sha256,
+            reinterpret_cast<const unsigned char *>(device_token.data()),
+            device_token.size(),
+            key.data()
+        ) != 0) {
+        return {};
+    }
+    const std::string challenge = nonce + ":" + endpoint_id;
+    if (mbedtls_md_hmac(
+            sha256,
+            key.data(),
+            key.size(),
+            reinterpret_cast<const unsigned char *>(challenge.data()),
+            challenge.size(),
+            digest.data()
+        ) != 0) {
+        return {};
+    }
+    constexpr char kHex[] = "0123456789abcdef";
+    std::string encoded(digest.size() * 2, '0');
+    for (std::size_t index = 0; index < digest.size(); ++index) {
+        encoded[index * 2] = kHex[digest[index] >> 4];
+        encoded[index * 2 + 1] = kHex[digest[index] & 0x0f];
+    }
+    return encoded;
+}
+
 std::string registration_message(
     const std::string &endpoint_id,
     const std::string &area_id,
-    const std::string &device_token
+    const std::string &device_token,
+    const std::string &nonce
 )
 {
     cJSON *message = create_message("endpoint.register", endpoint_id);
@@ -399,9 +451,12 @@ std::string registration_message(
     cJSON_AddStringToObject(payload, "device_id", endpoint_id.c_str());
     cJSON_AddStringToObject(payload, "device_name", "RoomHub Tab5");
     cJSON_AddStringToObject(payload, "room", "Unassigned");
-    if (!device_token.empty()) {
+    const std::string proof = registration_proof(
+        device_token, nonce, endpoint_id
+    );
+    if (!proof.empty()) {
         cJSON_AddStringToObject(
-            payload, "device_token", device_token.c_str()
+            payload, "device_proof", proof.c_str()
         );
     }
     if (!area_id.empty()) {
@@ -627,7 +682,29 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
     const cJSON *type = cJSON_GetObjectItemCaseSensitive(message, "type");
     if (cJSON_IsString(type) && type->valuestring != nullptr) {
         const std::string message_type(type->valuestring);
-        if (message_type == "endpoint.registered") {
+        if (message_type == "endpoint.challenge") {
+            const cJSON *payload = cJSON_GetObjectItemCaseSensitive(
+                message, "payload"
+            );
+            const cJSON *nonce = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "nonce")
+                : nullptr;
+            if (
+                cJSON_IsString(nonce)
+                && nonce->valuestring != nullptr
+                && std::strlen(nonce->valuestring) <= 128
+            ) {
+                transport.registration = registration_message(
+                    transport.endpoint_id,
+                    transport.area_id,
+                    transport.device_token,
+                    nonce->valuestring
+                );
+                if (!transport.registration.empty()) {
+                    xEventGroupSetBits(transport.events, kChallengeReady);
+                }
+            }
+        } else if (message_type == "endpoint.registered") {
             xEventGroupSetBits(transport.events, kRegistered);
             roomhub::board::show_tab5_roomhub_registered();
             ESP_LOGI(kTag, "Endpoint registration accepted by RoomHub");
@@ -911,6 +988,9 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                     stopped ? "stopped" : "not_found"
                 )
             );
+        } else if (message_type == "endpoint.registration_rejected") {
+            xEventGroupSetBits(transport.events, kFailed);
+            ESP_LOGW(kTag, "Endpoint registration rejected by RoomHub");
         } else if (message_type != "endpoint.heartbeat_ack") {
             ESP_LOGI(kTag, "RoomHub control message received: %s", type->valuestring);
         }
@@ -929,7 +1009,10 @@ void websocket_event_handler(
     if (event_id == WEBSOCKET_EVENT_CONNECTED) {
         transport.reconnect_backoff.reset();
         transport.reconnect_pending = false;
-        xEventGroupClearBits(transport.events, kFailed);
+        transport.registration.clear();
+        xEventGroupClearBits(
+            transport.events, kFailed | kRegistered | kChallengeReady
+        );
         xEventGroupSetBits(transport.events, kConnected);
         roomhub::board::show_tab5_roomhub_connecting();
         ESP_LOGI(kTag, "Connected to the RoomHub control service");
@@ -949,7 +1032,10 @@ void websocket_event_handler(
         if (transport.restart_in_progress.load()) {
             return;
         }
-        xEventGroupClearBits(transport.events, kConnected | kRegistered);
+        transport.registration.clear();
+        xEventGroupClearBits(
+            transport.events, kConnected | kRegistered | kChallengeReady
+        );
         transport.network_audio_allowed = false;
         transport.intercom_audio_allowed = false;
         transport.intercom_end_pending = false;
@@ -1005,7 +1091,11 @@ void heartbeat_task(void *argument)
             }
             continue;
         }
-        if ((state & kConnected) != 0 && (state & kRegistered) == 0) {
+        if (
+            (state & (kConnected | kChallengeReady))
+                == (kConnected | kChallengeReady)
+            && (state & kRegistered) == 0
+        ) {
             if (!send_text(transport.client, transport.registration)) {
                 ESP_LOGW(kTag, "Could not resend endpoint registration");
             }
@@ -1191,18 +1281,14 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     }
     context.endpoint_id = config.endpoint_id;
     context.roomhub_url = config.roomhub_url;
+    context.area_id = roomhub::config::EndpointConfigStore().load_area_id();
+    context.device_token = config.device_token;
     roomhub::board::set_tab5_audio_event_callback(send_audio_playback_event);
-    context.registration = registration_message(
-        context.endpoint_id,
-        roomhub::config::EndpointConfigStore().load_area_id(),
-        config.device_token
-    );
     if (
         context.events == nullptr
         || context.voice_response_mutex == nullptr
         || context.firmware_status_mutex == nullptr
         || context.voice_audio_stream == nullptr
-        || context.registration.empty()
     ) {
         ESP_LOGE(kTag, "Could not allocate RoomHub transport state");
         return result;
@@ -1273,6 +1359,17 @@ StartResult start(const roomhub::config::EndpointConfig &config)
         return result;
     }
 
+    state = xEventGroupWaitBits(
+        context.events,
+        kChallengeReady | kFailed,
+        pdFALSE,
+        pdFALSE,
+        pdMS_TO_TICKS(10000)
+    );
+    if ((state & kChallengeReady) == 0 || context.registration.empty()) {
+        ESP_LOGW(kTag, "RoomHub did not provide a registration challenge");
+        return result;
+    }
     if (!send_text(context.client, context.registration)) {
         ESP_LOGW(kTag, "Could not send endpoint registration");
         return result;

@@ -30,7 +30,9 @@ def collect_values() -> ProvisioningValues:
     print("Enter the endpoint settings. The Wi-Fi password will remain hidden.")
     return ProvisioningValues(
         endpoint_id=input("Endpoint ID: ").strip(),
-        roomhub_url=input("RoomHub URL: ").strip(),
+        roomhub_url=input(
+            "RoomHub URL (leave blank to discover homeassistant.local): "
+        ).strip(),
         device_token=getpass.getpass("Pairing credential: "),
         wifi_ssid=input("Wi-Fi network name: "),
         wifi_password=getpass.getpass("Wi-Fi password: "),

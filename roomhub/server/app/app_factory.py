@@ -1,5 +1,6 @@
 import asyncio
 import json
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -393,6 +394,12 @@ def create_app(
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
+        registration_nonce = secrets.token_urlsafe(24)
+        await websocket.send_json({
+            "version": "1.0",
+            "type": "endpoint.challenge",
+            "payload": {"nonce": registration_nonce},
+        })
         endpoint_id = None
         audio = VoiceAudioConnection()
         try:
@@ -431,7 +438,9 @@ def create_app(
                     payload = message.get("payload") or {}
                     candidate_id = payload.get("device_id")
                     pairing = endpoint_pairing_service.authenticate(
-                        candidate_id, payload.get("device_token")
+                        candidate_id,
+                        payload.get("device_proof"),
+                        registration_nonce,
                     )
                     if not pairing.accepted:
                         await websocket.send_json({
