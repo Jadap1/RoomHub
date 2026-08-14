@@ -761,7 +761,7 @@ void render_dashboard_content()
             lv_obj_t *group_button = lv_button_create(dashboard_grid);
             lv_obj_set_size(group_button, 280, 220);
             lv_obj_set_flex_flow(group_button, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_style_pad_row(group_button, 28, 0);
+            lv_obj_set_style_pad_row(group_button, 52, 0);
             lv_obj_set_flex_align(
                 group_button,
                 LV_FLEX_ALIGN_CENTER,
@@ -792,7 +792,7 @@ void render_dashboard_content()
         microphone_privacy_button = lv_button_create(dashboard_grid);
         lv_obj_set_size(microphone_privacy_button, 280, 220);
         lv_obj_set_flex_flow(microphone_privacy_button, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(microphone_privacy_button, 28, 0);
+        lv_obj_set_style_pad_row(microphone_privacy_button, 52, 0);
         lv_obj_set_flex_align(
             microphone_privacy_button,
             LV_FLEX_ALIGN_CENTER,
@@ -876,7 +876,7 @@ void render_dashboard_content()
         lv_obj_t *button = lv_button_create(dashboard_grid);
         lv_obj_set_size(button, 220, 142);
         lv_obj_set_flex_flow(button, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(button, 24, 0);
+        lv_obj_set_style_pad_row(button, 48, 0);
         lv_obj_set_flex_align(
             button,
             LV_FLEX_ALIGN_CENTER,
