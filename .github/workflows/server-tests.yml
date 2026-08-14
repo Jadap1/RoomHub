@@ -1,6 +1,7 @@
 name: RoomHub server tests
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "roomhub/server/**"
