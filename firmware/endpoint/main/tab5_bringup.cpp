@@ -60,6 +60,22 @@ std::size_t selected_media_player = 0;
 constexpr std::size_t kDashboardPageSize = 15;
 constexpr uint32_t kPrimaryTextColor = 0xf7fafc;
 constexpr uint32_t kSecondaryTextColor = 0xcbd5df;
+lv_style_t dashboard_large_text_style;
+bool dashboard_large_text_style_ready = false;
+
+void ensure_dashboard_large_text_style()
+{
+    if (dashboard_large_text_style_ready) {
+        return;
+    }
+    lv_style_init(&dashboard_large_text_style);
+    lv_style_set_text_color(
+        &dashboard_large_text_style,
+        lv_color_hex(kPrimaryTextColor)
+    );
+    lv_style_set_text_font(&dashboard_large_text_style, &lv_font_montserrat_28);
+    dashboard_large_text_style_ready = true;
+}
 
 void style_high_contrast_text(lv_obj_t *label)
 {
@@ -621,6 +637,7 @@ void create_status_screen(
 {
     (void)result;
     (void)endpoint_provisioned;
+    ensure_dashboard_large_text_style();
     lv_obj_t *screen = lv_display_get_screen_active(display);
     lv_obj_set_style_bg_color(screen, lv_color_hex(0x101820), 0);
     lv_obj_set_style_text_color(screen, lv_color_hex(0xf2f5f7), 0);
@@ -776,7 +793,7 @@ void render_dashboard_content()
             lv_obj_set_style_radius(group_button, 22, 0);
             lv_obj_t *icon = lv_label_create(group_button);
             lv_label_set_text(icon, group_icons[group_index]);
-            lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+            lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
             lv_obj_t *label = lv_label_create(group_button);
             lv_label_set_text_fmt(
                 label,
@@ -785,7 +802,7 @@ void render_dashboard_content()
                 static_cast<unsigned int>(matching_count)
             );
             style_high_contrast_text(label);
-            lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+            lv_obj_add_style(label, &dashboard_large_text_style, 0);
             lv_obj_add_event_cb(
                 group_button,
                 on_dashboard_group,
@@ -804,11 +821,13 @@ void render_dashboard_content()
         );
         lv_obj_set_style_radius(microphone_privacy_button, 22, 0);
         microphone_privacy_icon = lv_label_create(microphone_privacy_button);
-        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_28, 0);
         microphone_privacy_label = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_align(microphone_privacy_label, LV_TEXT_ALIGN_CENTER, 0);
         style_high_contrast_text(microphone_privacy_label);
-        lv_obj_set_style_text_font(microphone_privacy_label, &lv_font_montserrat_28, 0);
+        lv_obj_add_style(
+            microphone_privacy_label, &dashboard_large_text_style, 0
+        );
         update_microphone_privacy_tile();
         lv_obj_add_event_cb(
             microphone_privacy_button, on_microphone_tile, LV_EVENT_CLICKED, nullptr
@@ -923,14 +942,14 @@ void render_dashboard_content()
             lv_color_hex(entity.available ? 0xffffff : 0xb0bac4),
             0
         );
-        lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+        lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
 
         lv_obj_t *name = lv_label_create(button);
         lv_obj_set_width(name, 190);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(name, lv_color_hex(kPrimaryTextColor), 0);
-        lv_obj_set_style_text_font(name, &lv_font_montserrat_28, 0);
+        lv_obj_add_style(name, &dashboard_large_text_style, 0);
         lv_label_set_text(name, entity.name.c_str());
         if (entity.actionable) {
             lv_obj_add_event_cb(
