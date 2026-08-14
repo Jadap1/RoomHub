@@ -9,5 +9,7 @@ bool start_tab5_wake_word_detector(
     esp_codec_dev_handle_t microphone,
     roomhub::voice::VoiceSession &session
 );
+void set_tab5_microphone_muted(bool muted);
+bool tab5_microphone_muted();
 
 }  // namespace roomhub::board

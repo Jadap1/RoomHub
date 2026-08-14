@@ -29,12 +29,15 @@ class RoomHubApi:
         *,
         screen_on: bool | None = None,
         volume: int | None = None,
+        microphone_muted: bool | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {}
         if screen_on is not None:
             payload["screen_on"] = screen_on
         if volume is not None:
             payload["volume"] = volume
+        if microphone_muted is not None:
+            payload["microphone_muted"] = microphone_muted
         return await self._request(
             "PUT", f"/api/endpoints/{endpoint_id}/controls", json=payload
         )

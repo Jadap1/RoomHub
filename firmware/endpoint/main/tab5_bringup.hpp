@@ -51,6 +51,7 @@ struct MediaPlayer {
 };
 
 using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
+using MicrophoneMuteAction = void (*)();
 using NotificationAction = void (*)(const char *delivery_id, const char *status);
 using NotificationButtonAction = void (*)(
     const char *delivery_id, const char *entity_id
@@ -69,6 +70,8 @@ struct NotificationButtons {
 Tab5BringUpResult initialize_tab5(bool endpoint_provisioned);
 void show_tab5_wake_word_listening();
 void show_tab5_wake_word_detected();
+void show_tab5_microphone_muted();
+void set_tab5_microphone_mute_action(MicrophoneMuteAction action);
 void show_tab5_wireless_scan(unsigned int network_count);
 void show_tab5_wireless_connected();
 void show_tab5_wireless_retrying(unsigned int delay_seconds);

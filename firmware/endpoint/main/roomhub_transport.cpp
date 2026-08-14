@@ -21,6 +21,7 @@
 #include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
 #include "tab5_camera.hpp"
+#include "tab5_wake_word.hpp"
 
 namespace roomhub::transport {
 namespace {
@@ -67,6 +68,19 @@ struct TransportContext {
 
 TransportContext context;
 std::atomic_bool screen_on{true};
+
+void toggle_microphone_mute()
+{
+    const bool muted = !roomhub::board::tab5_microphone_muted();
+    roomhub::board::set_tab5_microphone_muted(muted);
+    roomhub::config::EndpointConfigStore store;
+    if (store.save_microphone_muted(muted) != ESP_OK) {
+        ESP_LOGW(kTag, "Could not persist microphone privacy state");
+    }
+    if (context.heartbeat_task_handle != nullptr) {
+        xTaskNotifyGive(context.heartbeat_task_handle);
+    }
+}
 
 bool send_text(
     esp_websocket_client_handle_t client,
@@ -375,13 +389,18 @@ std::string heartbeat_message(
     cJSON_AddStringToObject(
         payload,
         "privacy_state",
-        network_audio_allowed ? "capturing_command" : "waiting_for_wake_word"
+        roomhub::board::tab5_microphone_muted()
+            ? "microphone_muted"
+            : (network_audio_allowed ? "capturing_command" : "waiting_for_wake_word")
     );
     cJSON_AddBoolToObject(payload, "network_audio_allowed", network_audio_allowed);
     cJSON *controls = cJSON_AddObjectToObject(payload, "controls");
     cJSON_AddBoolToObject(controls, "screen_on", screen_on.load());
     cJSON_AddNumberToObject(
         controls, "volume", roomhub::board::tab5_output_volume()
+    );
+    cJSON_AddBoolToObject(
+        controls, "microphone_muted", roomhub::board::tab5_microphone_muted()
     );
     return print_message(message);
 }
@@ -434,6 +453,9 @@ std::string endpoint_control_status_message(
     cJSON_AddStringToObject(payload, "status", status);
     cJSON_AddBoolToObject(payload, "screen_on", screen_on.load());
     cJSON_AddNumberToObject(payload, "volume", roomhub::board::tab5_output_volume());
+    cJSON_AddBoolToObject(
+        payload, "microphone_muted", roomhub::board::tab5_microphone_muted()
+    );
     return print_message(message);
 }
 
@@ -572,8 +594,11 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                 ? cJSON_GetObjectItemCaseSensitive(payload, "screen_on") : nullptr;
             const cJSON *requested_volume = cJSON_IsObject(payload)
                 ? cJSON_GetObjectItemCaseSensitive(payload, "volume") : nullptr;
+            const cJSON *requested_microphone = cJSON_IsObject(payload)
+                ? cJSON_GetObjectItemCaseSensitive(payload, "microphone_muted") : nullptr;
             bool valid = cJSON_IsString(request_id) && request_id->valuestring
-                && (cJSON_IsBool(requested_screen) || cJSON_IsNumber(requested_volume));
+                && (cJSON_IsBool(requested_screen) || cJSON_IsNumber(requested_volume)
+                    || cJSON_IsBool(requested_microphone));
             bool applied = valid;
             if (valid && cJSON_IsBool(requested_screen)) {
                 const bool value = cJSON_IsTrue(requested_screen) != 0;
@@ -586,6 +611,12 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                 } else {
                     roomhub::board::set_tab5_output_volume(requested_volume->valueint);
                 }
+            }
+            if (valid && cJSON_IsBool(requested_microphone)) {
+                const bool muted = cJSON_IsTrue(requested_microphone) != 0;
+                roomhub::board::set_tab5_microphone_muted(muted);
+                roomhub::config::EndpointConfigStore store;
+                applied = store.save_microphone_muted(muted) == ESP_OK && applied;
             }
             send_text(
                 transport.client,
@@ -946,6 +977,7 @@ void voice_sender_task(void *argument)
 
 StartResult start(const roomhub::config::EndpointConfig &config)
 {
+    roomhub::board::set_tab5_microphone_mute_action(toggle_microphone_mute);
     StartResult result;
     context.events = xEventGroupCreate();
     context.voice_response_mutex = xSemaphoreCreateMutex();

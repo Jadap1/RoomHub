@@ -59,6 +59,13 @@ extern "C" void app_main(void)
         }
     }
 
+    if (storage_result == ESP_OK) {
+        roomhub::config::EndpointConfigStore config_store;
+        roomhub::board::set_tab5_microphone_muted(
+            config_store.load_microphone_muted()
+        );
+    }
+
     ESP_LOGI(
         kTag,
         "Privacy state: %s; network audio allowed: %s",

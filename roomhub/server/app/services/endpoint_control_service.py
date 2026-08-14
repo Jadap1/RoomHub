@@ -9,11 +9,12 @@ from ..core.registry import registry
 class EndpointControlRequest(BaseModel):
     screen_on: bool | None = None
     volume: int | None = Field(default=None, ge=0, le=100)
+    microphone_muted: bool | None = None
 
     @model_validator(mode="after")
     def require_control(self):
-        if self.screen_on is None and self.volume is None:
-            raise ValueError("screen_on or volume is required")
+        if self.screen_on is None and self.volume is None and self.microphone_muted is None:
+            raise ValueError("screen_on, volume, or microphone_muted is required")
         return self
 
 
@@ -50,6 +51,8 @@ class EndpointControlService:
         volume = payload.get("volume")
         if isinstance(volume, int) and not isinstance(volume, bool) and 0 <= volume <= 100:
             controls["volume"] = volume
+        if isinstance(payload.get("microphone_muted"), bool):
+            controls["microphone_muted"] = payload["microphone_muted"]
         return {
             "version": "1.0",
             "type": "endpoint.control.ack",

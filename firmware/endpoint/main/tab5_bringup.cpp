@@ -29,6 +29,7 @@ std::vector<std::string> dashboard_entity_ids;
 std::vector<DashboardEntity> dashboard_entities;
 std::vector<MediaPlayer> room_media_players;
 DashboardAction dashboard_action = nullptr;
+MicrophoneMuteAction microphone_mute_action = nullptr;
 lv_obj_t *control_overlay = nullptr;
 std::string selected_control_id;
 std::string selected_dashboard_group = "home";
@@ -200,6 +201,11 @@ void set_wake_word_status(const char *text, uint32_t color)
     lv_label_set_text(wake_word_status, text);
     lv_obj_set_style_text_color(wake_word_status, lv_color_hex(color), 0);
     bsp_display_unlock();
+}
+
+void on_microphone_icon(lv_event_t *)
+{
+    if (microphone_mute_action != nullptr) microphone_mute_action();
 }
 
 void send_selected_control(lv_event_t *event)
@@ -555,11 +561,6 @@ void show_media_overlay()
     lv_obj_add_event_cb(close, close_media_overlay, LV_EVENT_CLICKED, nullptr);
 }
 
-void on_media_icon(lv_event_t *)
-{
-    show_media_overlay();
-}
-
 void create_status_screen(
     lv_display_t *display,
     const Tab5BringUpResult &result,
@@ -624,7 +625,7 @@ void create_status_screen(
     lv_label_set_text(wake_word_status, LV_SYMBOL_AUDIO);
     lv_obj_set_style_text_color(wake_word_status, lv_color_hex(0xf6b93b), 0);
     lv_obj_add_flag(wake_word_status, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(wake_word_status, on_media_icon, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_event_cb(wake_word_status, on_microphone_icon, LV_EVENT_CLICKED, nullptr);
 
     dashboard_tabs = lv_obj_create(panel);
     lv_obj_set_size(dashboard_tabs, lv_pct(100), 44);
@@ -970,6 +971,16 @@ void show_tab5_wake_word_listening()
 void show_tab5_wake_word_detected()
 {
     set_wake_word_status(LV_SYMBOL_AUDIO, 0x78e08f);
+}
+
+void show_tab5_microphone_muted()
+{
+    set_wake_word_status(LV_SYMBOL_MUTE, 0xe55039);
+}
+
+void set_tab5_microphone_mute_action(MicrophoneMuteAction action)
+{
+    microphone_mute_action = action;
 }
 
 void show_tab5_wireless_scan(unsigned int network_count)

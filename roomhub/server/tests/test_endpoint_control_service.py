@@ -12,12 +12,13 @@ class EndpointControlServiceTests(unittest.IsolatedAsyncioTestCase):
         service = EndpointControlService()
         endpoint = Endpoint(device_id="panel", device_name="Panel", room="Bedroom", capabilities=["display", "speaker"], connected=True)
         with patch("app.services.endpoint_control_service.registry.get", return_value=endpoint), patch("app.services.endpoint_control_service.manager.get", return_value=object()), patch("app.services.endpoint_control_service.manager.send", new=AsyncMock(return_value=True)) as send:
-            result = await service.apply("panel", EndpointControlRequest(screen_on=False, volume=42))
+            result = await service.apply("panel", EndpointControlRequest(screen_on=False, volume=42, microphone_muted=True))
         self.assertEqual(result["status"], "sent")
         message = send.await_args.args[1]
         self.assertEqual(message["type"], "endpoint.control")
         self.assertEqual(message["payload"]["screen_on"], False)
         self.assertEqual(message["payload"]["volume"], 42)
+        self.assertEqual(message["payload"]["microphone_muted"], True)
 
     async def test_reports_unavailable_endpoint_without_sending(self):
         service = EndpointControlService()
@@ -37,6 +38,6 @@ class EndpointControlServiceTests(unittest.IsolatedAsyncioTestCase):
         service = EndpointControlService()
         endpoint = Endpoint(device_id="panel", device_name="Panel", room="Bedroom", capabilities=["display", "speaker"], connected=True)
         with patch("app.services.endpoint_control_service.registry.get", return_value=endpoint):
-            response = service.update("panel", {"request_id": "request-1", "status": "applied", "screen_on": False, "volume": 42})
-        self.assertEqual(endpoint.state["controls"], {"screen_on": False, "volume": 42})
+            response = service.update("panel", {"request_id": "request-1", "status": "applied", "screen_on": False, "volume": 42, "microphone_muted": True})
+        self.assertEqual(endpoint.state["controls"], {"screen_on": False, "volume": 42, "microphone_muted": True})
         self.assertEqual(response["type"], "endpoint.control.ack")

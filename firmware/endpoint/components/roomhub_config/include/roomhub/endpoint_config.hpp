@@ -43,6 +43,8 @@ public:
     esp_err_t clear() const;
     std::string load_area_id() const;
     esp_err_t save_area_id(const std::string &area_id) const;
+    bool load_microphone_muted() const;
+    esp_err_t save_microphone_muted(bool muted) const;
 };
 
 }  // namespace roomhub::config

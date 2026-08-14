@@ -1,6 +1,7 @@
 #include "roomhub/endpoint_config.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,6 +18,7 @@ constexpr char kRoomHubUrlKey[] = "roomhub_url";
 constexpr char kWifiSsidKey[] = "wifi_ssid";
 constexpr char kWifiPasswordKey[] = "wifi_password";
 constexpr char kAreaIdKey[] = "area_id";
+constexpr char kMicrophoneMutedKey[] = "mic_muted";
 
 bool has_prefix(const std::string &value, const char *prefix)
 {
@@ -224,6 +226,26 @@ esp_err_t EndpointConfigStore::save_area_id(const std::string &area_id) const
     if (handle != 0) {
         nvs_close(handle);
     }
+    return result;
+}
+
+bool EndpointConfigStore::load_microphone_muted() const
+{
+    nvs_handle_t handle = 0;
+    if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) return false;
+    std::uint8_t value = 0;
+    const esp_err_t result = nvs_get_u8(handle, kMicrophoneMutedKey, &value);
+    nvs_close(handle);
+    return result == ESP_OK && value != 0;
+}
+
+esp_err_t EndpointConfigStore::save_microphone_muted(bool muted) const
+{
+    nvs_handle_t handle = 0;
+    esp_err_t result = nvs_open(kNamespace, NVS_READWRITE, &handle);
+    if (result == ESP_OK) result = nvs_set_u8(handle, kMicrophoneMutedKey, muted ? 1 : 0);
+    if (result == ESP_OK) result = nvs_commit(handle);
+    if (handle != 0) nvs_close(handle);
     return result;
 }
 

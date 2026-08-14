@@ -33,6 +33,7 @@ srmodel_list_t *models = nullptr;
 const esp_afe_sr_iface_t *afe_handle = nullptr;
 esp_afe_sr_data_t *afe_data = nullptr;
 std::atomic_bool detector_running{false};
+std::atomic_bool microphone_muted{false};
 roomhub::voice::VoiceSession *voice_session = nullptr;
 std::uint32_t voice_playback_token = 0;
 
@@ -43,7 +44,8 @@ std::uint64_t now_ms()
 
 void restore_private_listening_state()
 {
-    show_tab5_wake_word_listening();
+    if (microphone_muted) show_tab5_microphone_muted();
+    else show_tab5_wake_word_listening();
     ESP_LOGI(kTag, "Listening locally for Jarvis; network audio is disabled");
 }
 
@@ -71,6 +73,10 @@ void microphone_feed_task(void *)
     );
     bool feed_backpressure = false;
     while (detector_running) {
+        if (microphone_muted) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
         if (tab5_audio_output_active()) {
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
@@ -130,6 +136,7 @@ void wake_word_fetch_task(void *)
         }
         if (
             result->wakeup_state == WAKENET_DETECTED
+            && !microphone_muted
             && voice_session->state()
                 == roomhub::voice::SessionState::waiting_for_wake_word
         ) {
@@ -161,7 +168,7 @@ void wake_word_fetch_task(void *)
             continue;
         }
 
-        if (voice_session->may_stream_audio()) {
+        if (voice_session->may_stream_audio() && !microphone_muted) {
             const std::uint64_t current_time_ms = now_ms();
             if (result->vad_state == VAD_SPEECH) {
                 voice_session->on_voice_activity(current_time_ms);
@@ -361,6 +368,29 @@ bool start_tab5_wake_word_detector(
         return false;
     }
     return true;
+}
+
+void set_tab5_microphone_muted(bool muted)
+{
+    microphone_muted = muted;
+    if (muted) {
+        if (voice_session != nullptr) {
+            roomhub::transport::cancel_voice_audio();
+            voice_session->on_failure();
+        }
+        if (afe_handle != nullptr && afe_data != nullptr) afe_handle->reset_buffer(afe_data);
+        show_tab5_microphone_muted();
+        ESP_LOGI(kTag, "Microphone muted; WakeNet and network capture disabled");
+    } else {
+        if (afe_handle != nullptr && afe_data != nullptr) afe_handle->reset_buffer(afe_data);
+        show_tab5_wake_word_listening();
+        ESP_LOGI(kTag, "Microphone unmuted; local WakeNet listening resumed");
+    }
+}
+
+bool tab5_microphone_muted()
+{
+    return microphone_muted.load();
 }
 
 }  // namespace roomhub::board
