@@ -387,7 +387,8 @@ std::string print_message(cJSON *message)
 
 std::string registration_message(
     const std::string &endpoint_id,
-    const std::string &area_id
+    const std::string &area_id,
+    const std::string &device_token
 )
 {
     cJSON *message = create_message("endpoint.register", endpoint_id);
@@ -398,6 +399,11 @@ std::string registration_message(
     cJSON_AddStringToObject(payload, "device_id", endpoint_id.c_str());
     cJSON_AddStringToObject(payload, "device_name", "RoomHub Tab5");
     cJSON_AddStringToObject(payload, "room", "Unassigned");
+    if (!device_token.empty()) {
+        cJSON_AddStringToObject(
+            payload, "device_token", device_token.c_str()
+        );
+    }
     if (!area_id.empty()) {
         cJSON_AddStringToObject(payload, "area_id", area_id.c_str());
     }
@@ -1188,7 +1194,8 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     roomhub::board::set_tab5_audio_event_callback(send_audio_playback_event);
     context.registration = registration_message(
         context.endpoint_id,
-        roomhub::config::EndpointConfigStore().load_area_id()
+        roomhub::config::EndpointConfigStore().load_area_id(),
+        config.device_token
     );
     if (
         context.events == nullptr

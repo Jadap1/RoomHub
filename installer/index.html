@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install RoomHub on a Tab5</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root { color-scheme: dark; font: 18px/1.5 system-ui, sans-serif; }
+    body { margin: 0; background: #071529; color: #eef7ff; }
+    main { max-width: 760px; margin: auto; padding: 32px 20px 64px; }
+    section { margin: 24px 0; padding: 24px; background: #102846; border-radius: 16px; }
+    label { display: block; margin: 14px 0 4px; }
+    input { box-sizing: border-box; width: 100%; padding: 12px; font: inherit; }
+    button, esp-web-install-button { display: inline-block; margin-top: 18px; }
+    button { padding: 12px 18px; font: inherit; cursor: pointer; }
+    .status { min-height: 1.5em; color: #7ee8fa; }
+    code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Set up a RoomHub Tab5</h1>
+  <p>This installer keeps Wi-Fi credentials in your browser and sends them
+     directly to the Tab5 over USB. They are not uploaded to RoomHub.</p>
+
+  <section>
+    <h2>1. Install signed firmware</h2>
+    <p>Connect the Tab5 with a USB data cable. The initial installation erases
+       its existing configuration; later releases arrive through RoomHub OTA.</p>
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+  </section>
+
+  <section>
+    <h2>2. Pair it with RoomHub</h2>
+    <p>After installation and restart, reconnect to the Tab5 serial port.</p>
+    <form id="provision-form">
+      <label for="endpoint-name">Device name</label>
+      <input id="endpoint-name" required maxlength="64" placeholder="Kitchen display">
+      <label for="roomhub-url">RoomHub LAN URL</label>
+      <input id="roomhub-url" required type="url" placeholder="http://192.168.1.20:8000">
+      <label for="device-token">Pairing credential</label>
+      <input id="device-token" required type="password" autocomplete="off">
+      <label for="wifi-ssid">Wi-Fi network</label>
+      <input id="wifi-ssid" required maxlength="32" autocomplete="off">
+      <label for="wifi-password">Wi-Fi password</label>
+      <input id="wifi-password" required type="password" maxlength="64" autocomplete="new-password">
+      <button type="submit">Connect and configure</button>
+    </form>
+    <p class="status" id="status" role="status"></p>
+  </section>
+</main>
+<script type="module" src="provision.js"></script>
+</body>
+</html>

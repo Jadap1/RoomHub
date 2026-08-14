@@ -13,6 +13,12 @@ provides:
 - SQLite caching and restart recovery;
 - HTTP and WebSocket interfaces for RoomHub endpoints.
 
+## Installation and security
+
+See [device onboarding](docs/ONBOARDING.md) for Home Assistant installation,
+the first Tab5 USB bootstrap, additional endpoints, OTA updates, and recovery.
+Release maintainers must also follow the [security and credential policy](docs/SECURITY.md).
+
 ## Home Assistant integration
 
 The `custom_components/roomhub` integration exposes each registered endpoint

@@ -141,6 +141,72 @@ def initialise_database():
 
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS endpoint_credentials
+            (
+                endpoint_id TEXT PRIMARY KEY,
+                token_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_pairing_codes
+            (
+                token_hash TEXT PRIMARY KEY,
+                device_name TEXT NOT NULL,
+                area_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_profiles
+            (
+                endpoint_id TEXT PRIMARY KEY,
+                device_name TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_credentials
+            (
+                endpoint_id TEXT PRIMARY KEY,
+                token_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_pairing_codes
+            (
+                token_hash TEXT PRIMARY KEY,
+                device_name TEXT NOT NULL,
+                area_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_profiles
+            (
+                endpoint_id TEXT PRIMARY KEY,
+                device_name TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS endpoint_entity_exclusions
             (
                 endpoint_id TEXT NOT NULL,

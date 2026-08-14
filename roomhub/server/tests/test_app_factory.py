@@ -14,6 +14,7 @@ from app.events.entity_events import (
     AreaDiscoveredEvent,
     DeviceDiscoveredEvent,
 )
+from app.services.endpoint_pairing_service import endpoint_pairing_service
 
 
 class FakeConnector:
@@ -222,6 +223,9 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
                     database_path=database_path,
                     homeassistant_connector=connector,
                 )
+                pairing = endpoint_pairing_service.create(
+                    "Kitchen Panel", "kitchen"
+                )
                 messages = iter([
                     {"type": "websocket.connect"},
                     {
@@ -233,6 +237,7 @@ class AppFactoryTests(unittest.IsolatedAsyncioTestCase):
                                 "device_name": "Kitchen Panel",
                                 "room": "Kitchen",
                                 "capabilities": ["microphone"],
+                                "device_token": pairing["pairing_token"],
                             },
                         }),
                     },

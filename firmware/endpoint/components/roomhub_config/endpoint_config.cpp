@@ -17,6 +17,7 @@ constexpr char kEndpointIdKey[] = "endpoint_id";
 constexpr char kRoomHubUrlKey[] = "roomhub_url";
 constexpr char kWifiSsidKey[] = "wifi_ssid";
 constexpr char kWifiPasswordKey[] = "wifi_password";
+constexpr char kDeviceTokenKey[] = "device_token";
 constexpr char kAreaIdKey[] = "area_id";
 constexpr char kMicrophoneMutedKey[] = "mic_muted";
 
@@ -78,12 +79,24 @@ esp_err_t read_config(nvs_handle_t handle, EndpointConfig &config)
     if (result != ESP_OK) {
         return result;
     }
-    return read_string(
+    result = read_string(
         handle,
         kWifiPasswordKey,
         kMaximumWifiPasswordLength,
         config.wifi_password
     );
+    if (result != ESP_OK) {
+        return result;
+    }
+    result = read_string(
+        handle,
+        kDeviceTokenKey,
+        kMaximumDeviceTokenLength,
+        config.device_token
+    );
+    // Firmware provisioned before authenticated pairing has no token. Keep it
+    // bootable so RoomHub can explicitly grandfather and migrate that endpoint.
+    return result == ESP_ERR_NVS_NOT_FOUND ? ESP_OK : result;
 }
 
 }  // namespace
@@ -107,7 +120,8 @@ bool is_valid(const EndpointConfig &config)
         && config.roomhub_url.size() <= kMaximumRoomHubUrlLength
         && !config.wifi_ssid.empty()
         && config.wifi_ssid.size() <= kMaximumWifiSsidLength
-        && config.wifi_password.size() <= kMaximumWifiPasswordLength;
+        && config.wifi_password.size() <= kMaximumWifiPasswordLength
+        && config.device_token.size() <= kMaximumDeviceTokenLength;
 }
 
 LoadResult EndpointConfigStore::load() const
@@ -168,6 +182,13 @@ esp_err_t EndpointConfigStore::save(const EndpointConfig &config) const
             handle,
             kWifiPasswordKey,
             config.wifi_password.c_str()
+        );
+    }
+    if (result == ESP_OK) {
+        result = nvs_set_str(
+            handle,
+            kDeviceTokenKey,
+            config.device_token.c_str()
         );
     }
     if (result == ESP_OK) {

@@ -27,6 +27,7 @@ from .services.audio_command_service import (
     audio_command_service,
 )
 from .services.endpoint_assignment_service import endpoint_assignment_service
+from .services.endpoint_pairing_service import endpoint_pairing_service
 from .services.endpoint_dashboard_preferences_service import (
     endpoint_dashboard_preferences_service,
 )
@@ -52,6 +53,11 @@ class EndpointManagementUpdate(BaseModel):
     excluded_entity_ids: list[str] = Field(default_factory=list)
     entity_order: list[str] = Field(default_factory=list)
     pinned_entity_ids: list[str] = Field(default_factory=list)
+
+
+class EndpointPairingRequest(BaseModel):
+    device_name: str = Field(min_length=1, max_length=64)
+    area_id: str
 
 
 def create_app(
@@ -233,6 +239,33 @@ def create_app(
             ),
         }
 
+    @app.post("/api/pairing")
+    @app.post("/manage/api/pairing")
+    async def create_endpoint_pairing(
+        pairing_request: EndpointPairingRequest,
+        request: Request,
+        x_roomhub_admin_token: str | None = Header(default=None),
+    ):
+        if configured_firmware_token() is None:
+            raise HTTPException(status_code=503, detail="admin token not configured")
+        if not firmware_token_valid(x_roomhub_admin_token):
+            firmware_audit.record("pairing_denied", client=str(request.client))
+            raise HTTPException(status_code=401, detail="invalid admin token")
+        if area_registry.get(pairing_request.area_id) is None:
+            raise HTTPException(status_code=400, detail="invalid area")
+        try:
+            result = endpoint_pairing_service.create(
+                pairing_request.device_name, pairing_request.area_id
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        firmware_audit.record(
+            "pairing_created",
+            device_name=pairing_request.device_name,
+            area_id=pairing_request.area_id,
+        )
+        return result
+
     @app.put("/api/endpoints/{endpoint_id}")
     @app.put("/manage/api/endpoints/{endpoint_id}")
     async def update_endpoint_management(
@@ -395,7 +428,23 @@ def create_app(
 
                 message_type = message.get("type")
                 if message_type == "endpoint.register":
-                    endpoint_id = message["payload"]["device_id"]
+                    payload = message.get("payload") or {}
+                    candidate_id = payload.get("device_id")
+                    pairing = endpoint_pairing_service.authenticate(
+                        candidate_id, payload.get("device_token")
+                    )
+                    if not pairing.accepted:
+                        await websocket.send_json({
+                            "version": "1.0",
+                            "type": "endpoint.registration_rejected",
+                            "payload": {"reason": pairing.reason},
+                        })
+                        continue
+                    if pairing.device_name:
+                        payload["device_name"] = pairing.device_name
+                    if pairing.area_id:
+                        payload["area_id"] = pairing.area_id
+                    endpoint_id = candidate_id
                     await manager.connect(
                         endpoint_id,
                         websocket

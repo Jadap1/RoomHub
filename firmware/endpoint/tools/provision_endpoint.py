@@ -23,6 +23,7 @@ class ProvisioningValues:
     roomhub_url: str
     wifi_ssid: str
     wifi_password: str
+    device_token: str
 
 
 def collect_values() -> ProvisioningValues:
@@ -30,6 +31,7 @@ def collect_values() -> ProvisioningValues:
     return ProvisioningValues(
         endpoint_id=input("Endpoint ID: ").strip(),
         roomhub_url=input("RoomHub URL: ").strip(),
+        device_token=getpass.getpass("Pairing credential: "),
         wifi_ssid=input("Wi-Fi network name: "),
         wifi_password=getpass.getpass("Wi-Fi password: "),
     )
@@ -39,6 +41,7 @@ def provision(port: str, values: ProvisioningValues, timeout: float) -> None:
     fields = {
         "endpoint_id": values.endpoint_id,
         "roomhub_url": values.roomhub_url,
+        "device_token": values.device_token,
         "wifi_ssid": values.wifi_ssid,
         "wifi_password": values.wifi_password,
     }

@@ -12,7 +12,16 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-server/config/homeassistant.json
+# Local Home Assistant and RoomHub credentials
+/roomhub/server/config/homeassistant.json
+/roomhub/server/config/*.local.json
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
 
 # RoomHub runtime database
 /roomhub/server/roomhub.db
@@ -21,6 +30,7 @@ server/config/homeassistant.json
 
 # ESP-IDF firmware build output and local configuration
 /firmware/endpoint/build/
+/firmware/endpoint/dist/
 /firmware/endpoint/managed_components/
 /firmware/endpoint/sdkconfig
 /firmware/endpoint/sdkconfig.old

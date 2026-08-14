@@ -11,6 +11,7 @@ inline constexpr std::size_t kMaximumEndpointIdLength = 64;
 inline constexpr std::size_t kMaximumRoomHubUrlLength = 256;
 inline constexpr std::size_t kMaximumWifiSsidLength = 32;
 inline constexpr std::size_t kMaximumWifiPasswordLength = 64;
+inline constexpr std::size_t kMaximumDeviceTokenLength = 128;
 inline constexpr std::size_t kMaximumAreaIdLength = 64;
 
 struct EndpointConfig {
@@ -18,6 +19,7 @@ struct EndpointConfig {
     std::string roomhub_url;
     std::string wifi_ssid;
     std::string wifi_password;
+    std::string device_token;
 };
 
 enum class LoadStatus {

@@ -96,6 +96,8 @@ void clear_secret(std::string &secret)
             wifi_ssid_buffer{};
         std::array<char, roomhub::config::kMaximumWifiPasswordLength + 2>
             wifi_password_buffer{};
+        std::array<char, roomhub::config::kMaximumDeviceTokenLength + 2>
+            device_token_buffer{};
 
         const bool fields_read = request_field(
             "endpoint_id",
@@ -105,6 +107,10 @@ void clear_secret(std::string &secret)
             "roomhub_url",
             roomhub_url_buffer,
             config.roomhub_url
+        ) && request_field(
+            "device_token",
+            device_token_buffer,
+            config.device_token
         ) && request_field(
             "wifi_ssid",
             wifi_ssid_buffer,
@@ -121,7 +127,9 @@ void clear_secret(std::string &secret)
             : ESP_ERR_INVALID_ARG;
 
         std::fill(wifi_password_buffer.begin(), wifi_password_buffer.end(), '\0');
+        std::fill(device_token_buffer.begin(), device_token_buffer.end(), '\0');
         clear_secret(config.wifi_password);
+        clear_secret(config.device_token);
 
         if (save_result != ESP_OK) {
             std::printf(
