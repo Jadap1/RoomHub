@@ -378,11 +378,9 @@ void set_tab5_microphone_muted(bool muted)
             roomhub::transport::cancel_voice_audio();
             voice_session->on_failure();
         }
-        if (afe_handle != nullptr && afe_data != nullptr) afe_handle->reset_buffer(afe_data);
         show_tab5_microphone_muted();
         ESP_LOGI(kTag, "Microphone muted; WakeNet and network capture disabled");
     } else {
-        if (afe_handle != nullptr && afe_data != nullptr) afe_handle->reset_buffer(afe_data);
         show_tab5_wake_word_listening();
         ESP_LOGI(kTag, "Microphone unmuted; local WakeNet listening resumed");
     }
