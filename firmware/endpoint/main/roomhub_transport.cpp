@@ -536,7 +536,6 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
         if (message_type == "endpoint.registered") {
             xEventGroupSetBits(transport.events, kRegistered);
             roomhub::board::show_tab5_roomhub_registered();
-            roomhub::ota::confirm_running_image();
             ESP_LOGI(kTag, "Endpoint registration accepted by RoomHub");
             const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             show_dashboard_payload(

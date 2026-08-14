@@ -2,6 +2,7 @@
 
 #include "roomhub/endpoint_config.hpp"
 #include "roomhub/voice_session.hpp"
+#include "endpoint_ota.hpp"
 #include "roomhub_transport.hpp"
 #include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
@@ -108,6 +109,13 @@ extern "C" void app_main(void)
             wireless_result.radio_ready ? "ready" : "failed",
             wireless_result.connected ? "connected" : "unavailable"
         );
+        if (wireless_result.connected) {
+            // Reaching this point proves that the local hardware, UI, audio,
+            // configuration and wireless path all survived first boot.  Do
+            // not make image validity depend on the remote WebSocket session:
+            // a stale RoomHub connection must not roll back a healthy image.
+            roomhub::ota::confirm_running_image();
+        }
     } else {
         const roomhub::board::Tab5WirelessScanResult wireless_result =
             roomhub::board::scan_tab5_wifi();
