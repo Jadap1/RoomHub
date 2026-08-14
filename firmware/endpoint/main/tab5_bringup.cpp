@@ -25,15 +25,11 @@ lv_obj_t *dashboard_area = nullptr;
 lv_obj_t *dashboard_tabs = nullptr;
 lv_obj_t *dashboard_grid = nullptr;
 lv_obj_t *dashboard_pager = nullptr;
-lv_obj_t *microphone_privacy_button = nullptr;
-lv_obj_t *microphone_privacy_icon = nullptr;
-lv_obj_t *microphone_privacy_label = nullptr;
 std::vector<std::string> dashboard_entity_ids;
 std::vector<DashboardEntity> dashboard_entities;
 std::vector<MediaPlayer> room_media_players;
 DashboardAction dashboard_action = nullptr;
 MicrophoneMuteAction microphone_mute_action = nullptr;
-bool microphone_is_muted = false;
 lv_obj_t *control_overlay = nullptr;
 std::string selected_control_id;
 std::string selected_dashboard_group = "home";
@@ -116,28 +112,6 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
 void render_dashboard_content();
 void show_media_overlay();
 void render_notification(const PendingNotification &notification);
-
-void update_microphone_privacy_tile()
-{
-    if (microphone_privacy_button == nullptr
-        || microphone_privacy_icon == nullptr
-        || microphone_privacy_label == nullptr) {
-        return;
-    }
-    lv_obj_set_style_bg_color(
-        microphone_privacy_button,
-        lv_color_hex(microphone_is_muted ? 0xa33b32 : 0x238f83),
-        0
-    );
-    lv_label_set_text(
-        microphone_privacy_icon,
-        microphone_is_muted ? LV_SYMBOL_MUTE : "MIC"
-    );
-    lv_label_set_text(
-        microphone_privacy_label,
-        microphone_is_muted ? "Microphone\nMuted" : "Microphone\nListening"
-    );
-}
 
 void finish_notification(const char *status)
 {
@@ -232,11 +206,6 @@ void set_wake_word_status(const char *text, uint32_t color)
 void on_microphone_icon(lv_event_t *)
 {
     if (microphone_mute_action != nullptr) microphone_mute_action();
-}
-
-void on_microphone_tile(lv_event_t *)
-{
-    on_microphone_icon(nullptr);
 }
 
 void send_selected_control(lv_event_t *event)
@@ -655,6 +624,8 @@ void create_status_screen(
     wake_word_status = lv_label_create(indicators);
     lv_label_set_text(wake_word_status, LV_SYMBOL_AUDIO);
     lv_obj_set_style_text_color(wake_word_status, lv_color_hex(0xf6b93b), 0);
+    lv_obj_add_flag(wake_word_status, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(wake_word_status, on_microphone_icon, LV_EVENT_CLICKED, nullptr);
 
     dashboard_tabs = lv_obj_create(panel);
     lv_obj_set_size(dashboard_tabs, lv_pct(100), 44);
@@ -706,11 +677,6 @@ void render_dashboard_content()
         return;
     }
 
-    // The grid clean invalidates the privacy widgets. Clear their handles first
-    // so asynchronous microphone state updates cannot touch deleted LVGL objects.
-    microphone_privacy_button = nullptr;
-    microphone_privacy_icon = nullptr;
-    microphone_privacy_label = nullptr;
     lv_obj_clean(dashboard_tabs);
     lv_obj_clean(dashboard_grid);
     lv_obj_clean(dashboard_pager);
@@ -772,29 +738,6 @@ void render_dashboard_content()
                 const_cast<char *>(group_ids[group_index])
             );
         }
-        microphone_privacy_button = lv_button_create(dashboard_grid);
-        lv_obj_set_size(microphone_privacy_button, 280, 220);
-        lv_obj_set_flex_flow(microphone_privacy_button, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(
-            microphone_privacy_button,
-            LV_FLEX_ALIGN_CENTER,
-            LV_FLEX_ALIGN_CENTER,
-            LV_FLEX_ALIGN_CENTER
-        );
-        lv_obj_set_style_bg_color(
-            microphone_privacy_button,
-            lv_color_hex(0x238f83),
-            0
-        );
-        lv_obj_set_style_radius(microphone_privacy_button, 22, 0);
-        microphone_privacy_icon = lv_label_create(microphone_privacy_button);
-        lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_28, 0);
-        microphone_privacy_label = lv_label_create(microphone_privacy_button);
-        lv_obj_set_style_text_align(microphone_privacy_label, LV_TEXT_ALIGN_CENTER, 0);
-        update_microphone_privacy_tile();
-        lv_obj_add_event_cb(
-            microphone_privacy_button, on_microphone_tile, LV_EVENT_CLICKED, nullptr
-        );
         if (dashboard_entities.empty()) {
             lv_obj_t *empty = lv_label_create(dashboard_grid);
             lv_label_set_text(empty, "No supported entities in this area");
@@ -1022,12 +965,7 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
 
 void show_tab5_wake_word_listening()
 {
-    microphone_is_muted = false;
     set_wake_word_status(LV_SYMBOL_AUDIO, 0x2bcbba);
-    if (selected_dashboard_group == "home" && bsp_display_lock(0)) {
-        update_microphone_privacy_tile();
-        bsp_display_unlock();
-    }
 }
 
 void show_tab5_wake_word_detected()
@@ -1037,12 +975,7 @@ void show_tab5_wake_word_detected()
 
 void show_tab5_microphone_muted()
 {
-    microphone_is_muted = true;
     set_wake_word_status(LV_SYMBOL_MUTE, 0xe55039);
-    if (selected_dashboard_group == "home" && bsp_display_lock(0)) {
-        update_microphone_privacy_tile();
-        bsp_display_unlock();
-    }
 }
 
 void set_tab5_microphone_mute_action(MicrophoneMuteAction action)
