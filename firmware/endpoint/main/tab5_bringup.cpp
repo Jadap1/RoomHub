@@ -777,6 +777,7 @@ void render_dashboard_content()
             lv_obj_t *icon = lv_label_create(group_button);
             lv_label_set_text(icon, group_icons[group_index]);
             lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
+            lv_obj_set_style_transform_scale(icon, 384, 0);
             lv_obj_t *label = lv_label_create(group_button);
             lv_label_set_text_fmt(
                 label,
@@ -785,6 +786,7 @@ void render_dashboard_content()
                 static_cast<unsigned int>(matching_count)
             );
             style_high_contrast_text(label);
+            lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
             lv_obj_add_event_cb(
                 group_button,
                 on_dashboard_group,
@@ -804,9 +806,11 @@ void render_dashboard_content()
         lv_obj_set_style_radius(microphone_privacy_button, 22, 0);
         microphone_privacy_icon = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_font(microphone_privacy_icon, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_transform_scale(microphone_privacy_icon, 384, 0);
         microphone_privacy_label = lv_label_create(microphone_privacy_button);
         lv_obj_set_style_text_align(microphone_privacy_label, LV_TEXT_ALIGN_CENTER, 0);
         style_high_contrast_text(microphone_privacy_label);
+        lv_obj_set_style_text_font(microphone_privacy_label, &lv_font_montserrat_28, 0);
         update_microphone_privacy_tile();
         lv_obj_add_event_cb(
             microphone_privacy_button, on_microphone_tile, LV_EVENT_CLICKED, nullptr
@@ -922,12 +926,14 @@ void render_dashboard_content()
             0
         );
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_transform_scale(icon, 384, 0);
 
         lv_obj_t *name = lv_label_create(button);
         lv_obj_set_width(name, 190);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(name, lv_color_hex(kPrimaryTextColor), 0);
+        lv_obj_set_style_text_font(name, &lv_font_montserrat_28, 0);
         lv_label_set_text(name, entity.name.c_str());
         if (entity.actionable) {
             lv_obj_add_event_cb(
