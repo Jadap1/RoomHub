@@ -121,7 +121,7 @@ async def tone_test(url: str, target: str) -> None:
                 break
         print("TRANSMITTING: two-second test tone", flush=True)
         frequency = 523.25
-        amplitude = 22000
+        amplitude = 5000
         frames_per_chunk = 320
         for offset in range(0, 16000 * 2, frames_per_chunk):
             samples = (
