@@ -11,6 +11,7 @@ from app.events.entity_events import (
 from app.integrations.homeassistant.providers.entity_provider import HomeAssistantEntityProvider
 from app.integrations.homeassistant.providers.registry_updates import HomeAssistantRegistryUpdates, REGISTRY_EVENT_TYPES
 from app.integrations.homeassistant.providers.state_provider import HomeAssistantStateProvider
+from app.integrations.homeassistant.connector import HomeAssistantConnector
 from app.integrations.homeassistant_config import EntityFilterConfig
 
 
@@ -38,6 +39,20 @@ class FakeProvider:
 
 
 class ProviderTests(unittest.IsolatedAsyncioTestCase):
+    def test_connector_import_does_not_require_local_credentials(self):
+        with (
+            patch(
+                "app.integrations.homeassistant.connector.is_homeassistant_app",
+                return_value=False,
+            ),
+            patch(
+                "app.integrations.homeassistant.connector.load_homeassistant_config",
+                side_effect=RuntimeError("configuration missing"),
+            ),
+        ):
+            connector = HomeAssistantConnector()
+        self.assertTrue(connector._entity_filter.allows("light.example"))
+
     async def test_entity_filter_and_effective_area(self):
         bus = EventBus()
         events = []

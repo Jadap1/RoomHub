@@ -110,10 +110,13 @@ class HomeAssistantConnector:
             )
 
 
-        return (
-            load_homeassistant_config()
-            .entity_filter
-        )
+        try:
+            return load_homeassistant_config().entity_filter
+        except RuntimeError:
+            # A clean checkout intentionally has no credential-bearing local
+            # configuration. Keep module import and dependency injection usable;
+            # start() will still report the missing connection configuration.
+            return EntityFilterConfig()
 
 
     async def start(self) -> None:
