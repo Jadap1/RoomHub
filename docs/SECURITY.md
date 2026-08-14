@@ -38,6 +38,18 @@ tag creation and release-environment access to maintainers. Public releases cont
 signed binaries, checksums, manifests, and public verification material; they
 never contain the private key.
 
+Maintainers can configure the encrypted GitHub Actions secret without placing
+the key on a command line:
+
+```text
+python -m pip install -r tools/requirements-release.txt
+python tools/set_github_signing_secret.py --repository Jadap1/RoomHub --key D:/secure/roomhub-endpoint.pem
+```
+
+The helper obtains the existing Git Credential Manager login, fetches GitHub's
+repository public key, encrypts the base64-encoded signing key locally with a
+sealed box, and uploads only ciphertext.
+
 ## Credential incident procedure
 
 If a credential is committed:
