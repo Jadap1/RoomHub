@@ -5,8 +5,11 @@ const form = document.querySelector("#provision-form");
 
 function endpointId(name) {
   const slug = name.toLowerCase().normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-  const random = crypto.getRandomValues(new Uint8Array(4));
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 39);
+  // A 96-bit random suffix keeps identities collision-resistant even when many
+  // users choose the same friendly name, while remaining within the firmware's
+  // 64-character endpoint ID limit.
+  const random = crypto.getRandomValues(new Uint8Array(12));
   const suffix = [...random].map(value => value.toString(16).padStart(2, "0")).join("");
   return `${slug || "roomhub"}-${suffix}`;
 }

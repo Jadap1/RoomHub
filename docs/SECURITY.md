@@ -3,6 +3,12 @@
 RoomHub configuration and release credentials must never be committed to the
 repository or included in firmware artifacts.
 
+The browser installer self-hosts the integrity-verified `esp-web-tools` 10.4.0
+bundle under `installer/vendor/esp-web-tools`. Do not replace it with a mutable
+CDN URL. Dependency updates must be downloaded from the npm registry, checked
+against the registry's SHA-512 integrity metadata, reviewed, and committed with
+the upstream license before the installer is redeployed.
+
 ## Local secrets
 
 The following values are local secrets:
