@@ -969,15 +969,14 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                 transport.intercom_peer_room = peer_room->valuestring;
             }
             transport.intercom_receiving = roomhub::board::start_tab5_intercom_receive();
-            transport.intercom_call_active = transport.intercom_receiving.load();
+            transport.intercom_call_active = true;
             transport.intercom_audio_allowed = false;
-            if (transport.intercom_call_active) {
-                roomhub::board::show_tab5_intercom_active(
-                    transport.intercom_peer_room
-                );
-            } else {
-                transport.intercom_end_pending = true;
+            if (!transport.intercom_receiving) {
+                ESP_LOGW(kTag, "Intercom listening is unavailable; talk remains active");
             }
+            roomhub::board::show_tab5_intercom_active(
+                transport.intercom_peer_room
+            );
             ESP_LOGI(kTag, "Intercom call became active");
         } else if (message_type == "intercom.ended") {
             transport.intercom_audio_allowed = false;
@@ -1639,8 +1638,7 @@ bool stop_intercom_talk()
     const bool listening = roomhub::board::start_tab5_intercom_receive();
     context.intercom_receiving = listening;
     if (!listening) {
-        ESP_LOGE(kTag, "Could not restore intercom listening after talk");
-        context.intercom_end_pending = true;
+        ESP_LOGW(kTag, "Intercom listening retry failed; call remains active");
     }
     return was_talking;
 }
