@@ -6,6 +6,7 @@
 #include "roomhub_transport.hpp"
 #include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
+#include "tab5_power.hpp"
 #include "tab5_wake_word.hpp"
 #include "tab5_wireless.hpp"
 #include "usb_provisioning.hpp"
@@ -25,6 +26,12 @@ extern "C" void app_main(void)
     ESP_LOGI(kTag, "RoomHub endpoint firmware starting");
     ESP_LOGI(kTag, "Board profile: M5Stack Tab5");
     ESP_LOGI(kTag, "On-device wake model: wn9_jarvis_tts");
+    const bool charging_enabled = roomhub::board::initialize_tab5_charger();
+    ESP_LOGI(
+        kTag,
+        "Battery charger: %s",
+        charging_enabled ? "enabled" : "failed"
+    );
     const bool wireless_powered = roomhub::board::power_on_tab5_wireless();
     ESP_LOGI(
         kTag,

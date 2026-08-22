@@ -92,6 +92,13 @@ void show_tab5_firmware_updating(unsigned int percent);
 void show_tab5_firmware_failed();
 void show_tab5_firmware_restarting();
 bool set_tab5_screen_on(bool screen_on);
+void configure_tab5_display_policy(
+    bool tap_to_wake,
+    bool wake_on_voice,
+    unsigned int sleep_timeout_seconds,
+    const char *dashboard_layout
+);
+void wake_tab5_screen_for_activity();
 void show_tab5_dashboard(
     const std::string &area_name,
     const std::vector<DashboardEntity> &entities,

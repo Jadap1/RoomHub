@@ -234,6 +234,9 @@ void show_dashboard_payload(const cJSON *payload)
     const cJSON *area_id = cJSON_GetObjectItemCaseSensitive(payload, "area_id");
     const cJSON *items = cJSON_GetObjectItemCaseSensitive(payload, "entities");
     const cJSON *media_items = cJSON_GetObjectItemCaseSensitive(payload, "media_players");
+    const cJSON *display_preferences = cJSON_GetObjectItemCaseSensitive(
+        payload, "display_preferences"
+    );
     if (!cJSON_IsString(area_name) || !cJSON_IsArray(items)) {
         return;
     }
@@ -243,6 +246,30 @@ void show_dashboard_payload(const cJSON *payload)
         );
         if (saved != ESP_OK) {
             ESP_LOGW(kTag, "Could not persist dashboard area: %s", esp_err_to_name(saved));
+        }
+    }
+    if (cJSON_IsObject(display_preferences)) {
+        const cJSON *tap_to_wake = cJSON_GetObjectItemCaseSensitive(
+            display_preferences, "tap_to_wake"
+        );
+        const cJSON *wake_on_voice = cJSON_GetObjectItemCaseSensitive(
+            display_preferences, "wake_on_voice"
+        );
+        const cJSON *sleep_timeout = cJSON_GetObjectItemCaseSensitive(
+            display_preferences, "sleep_timeout_seconds"
+        );
+        const cJSON *dashboard_layout = cJSON_GetObjectItemCaseSensitive(
+            display_preferences, "dashboard_layout"
+        );
+        if (cJSON_IsBool(tap_to_wake) && cJSON_IsBool(wake_on_voice)
+            && cJSON_IsNumber(sleep_timeout) && sleep_timeout->valueint >= 0
+            && cJSON_IsString(dashboard_layout)) {
+            roomhub::board::configure_tab5_display_policy(
+                cJSON_IsTrue(tap_to_wake) != 0,
+                cJSON_IsTrue(wake_on_voice) != 0,
+                static_cast<unsigned int>(sleep_timeout->valueint),
+                dashboard_layout->valuestring
+            );
         }
     }
     std::vector<roomhub::board::DashboardEntity> entities;

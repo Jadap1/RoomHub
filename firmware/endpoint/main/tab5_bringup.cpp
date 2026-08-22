@@ -36,6 +36,15 @@ DashboardAction dashboard_action = nullptr;
 IntercomAction intercom_action = nullptr;
 MicrophoneMuteAction microphone_mute_action = nullptr;
 bool microphone_is_muted = false;
+lv_display_t *tab5_display = nullptr;
+lv_obj_t *sleep_touch_guard = nullptr;
+lv_timer_t *display_sleep_timer = nullptr;
+bool display_is_on = true;
+bool display_tap_to_wake = true;
+bool display_wake_on_voice = true;
+unsigned int display_sleep_timeout_seconds = 0;
+std::string configured_dashboard_layout = "grouped";
+bool dashboard_direct_mode = false;
 lv_obj_t *control_overlay = nullptr;
 std::string selected_control_id;
 std::string selected_dashboard_group = "home";
@@ -128,6 +137,44 @@ void render_dashboard_content();
 void show_media_overlay();
 void show_intercom_overlay();
 void render_notification(const PendingNotification &notification);
+
+bool set_screen_on_locked(bool screen_on)
+{
+    const esp_err_t result = bsp_display_brightness_set(screen_on ? 35 : 0);
+    if (result != ESP_OK) {
+        ESP_LOGW(kTag, "Could not set display power: %s", esp_err_to_name(result));
+        return false;
+    }
+    display_is_on = screen_on;
+    if (screen_on) {
+        lv_display_trigger_activity(tab5_display);
+        if (sleep_touch_guard != nullptr) {
+            lv_obj_delete_async(sleep_touch_guard);
+            sleep_touch_guard = nullptr;
+        }
+    } else if (display_tap_to_wake && sleep_touch_guard == nullptr) {
+        sleep_touch_guard = lv_obj_create(lv_layer_top());
+        lv_obj_remove_style_all(sleep_touch_guard);
+        lv_obj_set_size(sleep_touch_guard, LV_PCT(100), LV_PCT(100));
+        lv_obj_add_flag(sleep_touch_guard, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(
+            sleep_touch_guard,
+            [](lv_event_t *) { set_screen_on_locked(true); },
+            LV_EVENT_PRESSED,
+            nullptr
+        );
+    }
+    return true;
+}
+
+void display_sleep_tick(lv_timer_t *)
+{
+    if (display_is_on && display_sleep_timeout_seconds > 0
+        && lv_display_get_inactive_time(tab5_display)
+            >= display_sleep_timeout_seconds * 1000U) {
+        set_screen_on_locked(false);
+    }
+}
 
 void update_microphone_privacy_tile()
 {
@@ -1013,21 +1060,25 @@ void render_dashboard_content()
         return;
     }
 
-    lv_obj_remove_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_t *home = lv_button_create(dashboard_tabs);
-    lv_obj_set_height(home, 36);
-    lv_obj_set_style_pad_hor(home, 16, 0);
-    lv_obj_set_style_bg_color(home, lv_color_hex(0x238f83), 0);
-    lv_obj_t *home_label = lv_label_create(home);
-    lv_label_set_text(home_label, LV_SYMBOL_HOME " Groups");
-    style_high_contrast_text(home_label);
-    lv_obj_center(home_label);
-    lv_obj_add_event_cb(
-        home,
-        on_dashboard_group,
-        LV_EVENT_CLICKED,
-        const_cast<char *>("home")
-    );
+    if (dashboard_direct_mode) {
+        lv_obj_add_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_remove_flag(dashboard_tabs, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_t *home = lv_button_create(dashboard_tabs);
+        lv_obj_set_height(home, 36);
+        lv_obj_set_style_pad_hor(home, 16, 0);
+        lv_obj_set_style_bg_color(home, lv_color_hex(0x238f83), 0);
+        lv_obj_t *home_label = lv_label_create(home);
+        lv_label_set_text(home_label, LV_SYMBOL_HOME " Groups");
+        style_high_contrast_text(home_label);
+        lv_obj_center(home_label);
+        lv_obj_add_event_cb(
+            home,
+            on_dashboard_group,
+            LV_EVENT_CLICKED,
+            const_cast<char *>("home")
+        );
+    }
     const char *selected_label = selected_dashboard_group == "favourites"
         ? "Favourites"
         : (selected_dashboard_group == "light" ? "Lights"
@@ -1201,6 +1252,7 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
     }
 
     lv_display_t *display = bsp_display_start();
+    tab5_display = display;
     result.display_ready = display != nullptr;
     result.touch_ready = (
         result.display_ready && bsp_display_get_input_dev() != nullptr
@@ -1217,6 +1269,7 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
     }
     bsp_display_rotate(display, LV_DISPLAY_ROTATION_90);
     create_status_screen(display, result, endpoint_provisioned);
+    display_sleep_timer = lv_timer_create(display_sleep_tick, 1000, nullptr);
     bsp_display_unlock();
 
     const esp_err_t brightness_result = bsp_display_brightness_set(35);
@@ -1243,6 +1296,9 @@ void show_tab5_wake_word_listening()
 
 void show_tab5_wake_word_detected()
 {
+    if (display_wake_on_voice) {
+        wake_tab5_screen_for_activity();
+    }
     set_wake_word_status(LV_SYMBOL_AUDIO, 0x78e08f);
 }
 
@@ -1368,11 +1424,41 @@ void show_tab5_firmware_restarting()
 
 bool set_tab5_screen_on(bool screen_on)
 {
-    const esp_err_t result = bsp_display_brightness_set(screen_on ? 35 : 0);
-    if (result != ESP_OK) {
-        ESP_LOGW(kTag, "Could not set display power: %s", esp_err_to_name(result));
+    if (tab5_display == nullptr || !bsp_display_lock(100)) return false;
+    const bool result = set_screen_on_locked(screen_on);
+    bsp_display_unlock();
+    return result;
+}
+
+void configure_tab5_display_policy(
+    bool tap_to_wake,
+    bool wake_on_voice,
+    unsigned int sleep_timeout_seconds,
+    const char *dashboard_layout
+)
+{
+    if (tab5_display == nullptr || !bsp_display_lock(100)) return;
+    display_tap_to_wake = tap_to_wake;
+    display_wake_on_voice = wake_on_voice;
+    display_sleep_timeout_seconds = sleep_timeout_seconds;
+    configured_dashboard_layout = dashboard_layout != nullptr
+        ? dashboard_layout : "grouped";
+    lv_display_trigger_activity(tab5_display);
+    if (!display_is_on && !display_tap_to_wake && sleep_touch_guard != nullptr) {
+        lv_obj_delete_async(sleep_touch_guard);
+        sleep_touch_guard = nullptr;
+    } else if (!display_is_on && display_tap_to_wake
+        && sleep_touch_guard == nullptr) {
+        set_screen_on_locked(false);
     }
-    return result == ESP_OK;
+    bsp_display_unlock();
+}
+
+void wake_tab5_screen_for_activity()
+{
+    if (tab5_display == nullptr || !bsp_display_lock(100)) return;
+    set_screen_on_locked(true);
+    bsp_display_unlock();
 }
 
 void show_tab5_dashboard(
@@ -1388,6 +1474,16 @@ void show_tab5_dashboard(
     dashboard_action = action;
     dashboard_entities = entities;
     room_media_players = media_players;
+    const bool next_direct_mode = configured_dashboard_layout == "direct"
+        || (configured_dashboard_layout == "automatic" && entities.size() <= 8);
+    if (next_direct_mode) {
+        if (!dashboard_direct_mode) selected_dashboard_page = 0;
+        selected_dashboard_group = "all";
+    } else if (dashboard_direct_mode) {
+        selected_dashboard_group = "home";
+        selected_dashboard_page = 0;
+    }
+    dashboard_direct_mode = next_direct_mode;
     dashboard_entity_ids.clear();
     dashboard_entity_ids.reserve(entities.size());
     for (const auto &entity : entities) {
@@ -1432,6 +1528,7 @@ void show_tab5_intercom_outgoing(const std::string &target_room)
 
 void show_tab5_intercom_incoming(const std::string &source_room)
 {
+    wake_tab5_screen_for_activity();
     if (!bsp_display_lock(0)) return;
     lv_obj_t *panel = create_intercom_panel(440);
     lv_obj_t *title = lv_label_create(panel);
@@ -1526,6 +1623,7 @@ void show_tab5_notification(
     NotificationButtonAction button_action
 )
 {
+    wake_tab5_screen_for_activity();
     if (!bsp_display_lock(0)) {
         return;
     }

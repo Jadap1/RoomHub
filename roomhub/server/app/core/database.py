@@ -229,4 +229,17 @@ def initialise_database():
             """
         )
 
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS endpoint_display_preferences
+            (
+                endpoint_id TEXT PRIMARY KEY,
+                tap_to_wake INTEGER NOT NULL DEFAULT 1,
+                wake_on_voice INTEGER NOT NULL DEFAULT 1,
+                sleep_timeout_seconds INTEGER NOT NULL DEFAULT 0,
+                dashboard_layout TEXT NOT NULL DEFAULT 'grouped'
+            )
+            """
+        )
+
         connection.commit()

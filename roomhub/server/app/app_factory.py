@@ -32,6 +32,9 @@ from .services.endpoint_pairing_service import endpoint_pairing_service
 from .services.endpoint_dashboard_preferences_service import (
     endpoint_dashboard_preferences_service,
 )
+from .services.endpoint_display_preferences_service import (
+    endpoint_display_preferences_service,
+)
 from .services.firmware_service import firmware_service
 from .services.firmware_auth import configured_firmware_token, firmware_token_valid
 from .services.firmware_audit import firmware_audit
@@ -54,6 +57,10 @@ class EndpointManagementUpdate(BaseModel):
     excluded_entity_ids: list[str] = Field(default_factory=list)
     entity_order: list[str] = Field(default_factory=list)
     pinned_entity_ids: list[str] = Field(default_factory=list)
+    tap_to_wake: bool = True
+    wake_on_voice: bool = True
+    sleep_timeout_seconds: int = Field(default=0, ge=0, le=86400)
+    dashboard_layout: str = Field(default="grouped", pattern="^(grouped|direct|automatic)$")
 
 
 class EndpointPairingRequest(BaseModel):
@@ -230,6 +237,9 @@ def create_app(
                     )
                 ),
                 "firmware_deployment": firmware_deployment_service.get(endpoint_id),
+                "display_preferences": endpoint_display_preferences_service.get(
+                    endpoint_id
+                ),
             })
         endpoints.sort(key=lambda item: item["device_name"].casefold())
         return {
@@ -288,6 +298,15 @@ def create_app(
         )
         if preferences["status"] != "saved":
             raise HTTPException(status_code=400, detail=preferences)
+        display_preferences = await endpoint_display_preferences_service.save(
+            endpoint_id,
+            tap_to_wake=update.tap_to_wake,
+            wake_on_voice=update.wake_on_voice,
+            sleep_timeout_seconds=update.sleep_timeout_seconds,
+            dashboard_layout=update.dashboard_layout,
+        )
+        if display_preferences["status"] != "saved":
+            raise HTTPException(status_code=400, detail=display_preferences)
         endpoint = registry.get(endpoint_id)
         return {
             "status": "saved",

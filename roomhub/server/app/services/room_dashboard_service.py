@@ -121,22 +121,26 @@ class RoomDashboardService:
         from .endpoint_dashboard_preferences_service import (
             endpoint_dashboard_preferences_service,
         )
+        from .endpoint_display_preferences_service import (
+            endpoint_display_preferences_service,
+        )
+
+        dashboard = self.snapshot(
+            endpoint.area_id,
+            self.maximum_entities_for_firmware(endpoint.firmware_version),
+            endpoint_dashboard_preferences_service.excluded_entity_ids(endpoint_id),
+            endpoint_dashboard_preferences_service.entity_preferences(endpoint_id),
+        )
+        dashboard["display_preferences"] = endpoint_display_preferences_service.get(
+            endpoint_id
+        )
 
         await manager.send(endpoint_id, {
             "version": "1.0",
             "type": "room.dashboard",
             "source": "roomhub-core",
             "target": endpoint_id,
-            "payload": self.snapshot(
-                endpoint.area_id,
-                self.maximum_entities_for_firmware(endpoint.firmware_version),
-                endpoint_dashboard_preferences_service.excluded_entity_ids(
-                    endpoint_id
-                ),
-                endpoint_dashboard_preferences_service.entity_preferences(
-                    endpoint_id
-                ),
-            ),
+            "payload": dashboard,
         })
 
     async def handle_state_changed(self, event: EntityStateChangedEvent) -> None:
