@@ -2,6 +2,8 @@
 
 import argparse
 import asyncio
+import hashlib
+import hmac
 import json
 import math
 import struct
@@ -27,30 +29,47 @@ async def heartbeat(socket, endpoint_id: str) -> None:
         }))
 
 
-async def register(socket, endpoint_id: str, room: str) -> None:
+async def register(socket, endpoint_id: str, room: str, token: str | None) -> None:
+    challenge = json.loads(await socket.recv())
+    if challenge.get("type") != "endpoint.challenge":
+        raise RuntimeError("RoomHub did not provide a registration challenge")
+    nonce = challenge.get("payload", {}).get("nonce", "")
+    proof = None
+    if token:
+        key = bytes.fromhex(hashlib.sha256(token.encode()).hexdigest())
+        proof = hmac.new(
+            key, f"{nonce}:{endpoint_id}".encode(), hashlib.sha256
+        ).hexdigest()
+    payload = {
+        "device_id": endpoint_id,
+        "device_name": "RoomHub PC Test Peer",
+        "room": room,
+        "capabilities": ["speaker", "microphone"],
+        "firmware_version": "test-peer",
+    }
+    if proof:
+        payload["device_proof"] = proof
     await socket.send(json.dumps({
         "version": "1.0",
         "type": "endpoint.register",
         "source": endpoint_id,
         "target": "roomhub-core",
-        "payload": {
-            "device_id": endpoint_id,
-            "device_name": "RoomHub PC Test Peer",
-            "room": room,
-            "capabilities": ["speaker", "microphone"],
-            "firmware_version": "test-peer",
-        },
+        "payload": payload,
     }))
     while True:
         message = await socket.recv()
-        if isinstance(message, str) and json.loads(message).get("type") == "endpoint.registered":
-            return
+        if isinstance(message, str):
+            response = json.loads(message)
+            if response.get("type") == "endpoint.registered":
+                return
+            if response.get("type") == "endpoint.registration_rejected":
+                raise RuntimeError(response.get("payload", {}).get("reason"))
 
 
-async def receive_test(url: str) -> None:
+async def receive_test(url: str, token: str | None) -> None:
     endpoint_id = "intercom-pc-test"
     async with websockets.connect(url, max_size=65536) as socket:
-        await register(socket, endpoint_id, "PC Test Receiver")
+        await register(socket, endpoint_id, "PC Test Receiver", token)
         keepalive = asyncio.create_task(heartbeat(socket, endpoint_id))
         print("READY: PC Test Receiver is registered", flush=True)
         received = 0
@@ -68,14 +87,18 @@ async def receive_test(url: str) -> None:
                         message = json.loads(frame)
                         message_type = message.get("type")
                         if message_type == "intercom.incoming":
+                            call_id = message.get("payload", {}).get("call_id")
                             await socket.send(json.dumps({
                                 "version": "1.0",
                                 "type": "intercom.status",
                                 "source": endpoint_id,
                                 "target": "roomhub-core",
-                                "payload": {"status": "accepted"},
+                                "payload": {
+                                    "call_id": call_id,
+                                    "status": "accepted",
+                                },
                             }))
-                            print("RECEIVING", flush=True)
+                            print(f"ACTIVE: accepted call {call_id}", flush=True)
                         elif message_type == "intercom.ended" and received:
                             seconds = received / (16000 * 2)
                             print(
@@ -94,10 +117,10 @@ async def receive_test(url: str) -> None:
                 await keepalive
 
 
-async def tone_test(url: str, target: str) -> None:
+async def tone_test(url: str, target: str, token: str | None) -> None:
     endpoint_id = "intercom-pc-sender"
     async with websockets.connect(url, max_size=65536) as socket:
-        await register(socket, endpoint_id, "PC Test Sender")
+        await register(socket, endpoint_id, "PC Test Sender", token)
         await socket.send(json.dumps({
             "version": "1.0",
             "type": "intercom.start",
@@ -117,7 +140,12 @@ async def tone_test(url: str, target: str) -> None:
             response = json.loads(message)
             if response.get("type") == "intercom.rejected":
                 raise RuntimeError(response.get("payload", {}).get("reason"))
-            if response.get("type") == "intercom.ready":
+            if response.get("type") == "intercom.ringing":
+                call_id = response.get("payload", {}).get("call_id")
+                print(f"RINGING: call {call_id}; accept it on the Tab5", flush=True)
+                continue
+            if response.get("type") == "intercom.active":
+                call_id = response.get("payload", {}).get("call_id")
                 break
         print("TRANSMITTING: two-second test tone", flush=True)
         frequency = 523.25
@@ -135,7 +163,7 @@ async def tone_test(url: str, target: str) -> None:
             "type": "intercom.end",
             "source": endpoint_id,
             "target": "roomhub-core",
-            "payload": {},
+            "payload": {"call_id": call_id},
         }))
         print("COMPLETE", flush=True)
 
@@ -145,11 +173,14 @@ def main() -> None:
     parser.add_argument("mode", choices=("receive", "tone"))
     parser.add_argument("--url", default="ws://192.168.0.70:8000/ws")
     parser.add_argument("--target", default="tab5-01")
+    parser.add_argument(
+        "--token", help="fresh pairing credential or this peer's saved token"
+    )
     args = parser.parse_args()
     asyncio.run(
-        receive_test(args.url)
+        receive_test(args.url, args.token)
         if args.mode == "receive"
-        else tone_test(args.url, args.target)
+        else tone_test(args.url, args.target, args.token)
     )
 
 

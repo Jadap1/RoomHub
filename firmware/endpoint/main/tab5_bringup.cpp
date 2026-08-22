@@ -43,6 +43,7 @@ std::size_t selected_dashboard_page = 0;
 lv_obj_t *media_overlay = nullptr;
 lv_obj_t *intercom_overlay = nullptr;
 lv_obj_t *intercom_status_label = nullptr;
+bool intercom_call_overlay = false;
 lv_obj_t *notification_overlay = nullptr;
 lv_timer_t *notification_timer = nullptr;
 std::string notification_delivery_id;
@@ -435,44 +436,114 @@ void close_intercom_overlay(lv_event_t *)
         lv_obj_delete(intercom_overlay);
         intercom_overlay = nullptr;
         intercom_status_label = nullptr;
+        intercom_call_overlay = false;
     }
 }
 
-void intercom_press(lv_event_t *event)
+lv_obj_t *create_intercom_panel(int height)
+{
+    close_intercom_overlay(nullptr);
+    intercom_overlay = lv_obj_create(lv_screen_active());
+    intercom_call_overlay = true;
+    lv_obj_set_size(intercom_overlay, 650, height);
+    lv_obj_center(intercom_overlay);
+    lv_obj_set_style_bg_color(intercom_overlay, lv_color_hex(0x172733), 0);
+    lv_obj_set_style_border_color(intercom_overlay, lv_color_hex(0x2bcbba), 0);
+    lv_obj_set_style_border_width(intercom_overlay, 3, 0);
+    lv_obj_set_style_radius(intercom_overlay, 22, 0);
+    lv_obj_set_flex_flow(intercom_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        intercom_overlay, LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER
+    );
+    return intercom_overlay;
+}
+
+lv_obj_t *add_intercom_button(
+    lv_obj_t *parent, const char *text, std::uint32_t color,
+    lv_event_cb_t callback
+)
+{
+    lv_obj_t *button = lv_button_create(parent);
+    lv_obj_set_size(button, 240, 88);
+    lv_obj_set_style_bg_color(button, lv_color_hex(color), 0);
+    lv_obj_t *label = lv_label_create(button);
+    lv_label_set_text(label, text);
+    style_high_contrast_text(label);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+    lv_obj_center(label);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, nullptr);
+    return button;
+}
+
+void intercom_call(lv_event_t *event)
 {
     const std::size_t index = reinterpret_cast<std::size_t>(
         lv_event_get_user_data(event)
     );
     if (intercom_action == nullptr || index >= intercom_targets.size()) return;
-    const bool started = intercom_action(
-        intercom_targets[index].endpoint_id.c_str(), true
-    );
-    if (intercom_status_label != nullptr) {
-        lv_label_set_text(
-            intercom_status_label,
-            started ? "Transmitting - release to stop" : "Room unavailable"
-        );
+    if (!intercom_action(intercom_targets[index].endpoint_id.c_str(), "call")
+        && intercom_status_label != nullptr) {
+        lv_label_set_text(intercom_status_label, "Room unavailable");
         lv_obj_set_style_text_color(
-            intercom_status_label,
-            lv_color_hex(started ? 0x2bcbba : 0xe55039),
-            0
+            intercom_status_label, lv_color_hex(0xe55039), 0
         );
     }
 }
 
-void intercom_release(lv_event_t *)
+void intercom_accept(lv_event_t *)
 {
-    if (intercom_action != nullptr) intercom_action(nullptr, false);
-    if (intercom_status_label != nullptr) {
-        lv_label_set_text(intercom_status_label, "Hold a room button to talk");
-        style_high_contrast_text(intercom_status_label);
+    if (intercom_action != nullptr && intercom_action(nullptr, "accept")
+        && intercom_status_label != nullptr) {
+        lv_label_set_text(intercom_status_label, "Connecting...");
     }
+}
+
+void intercom_decline(lv_event_t *)
+{
+    if (intercom_action != nullptr) intercom_action(nullptr, "decline");
+    close_intercom_overlay(nullptr);
+}
+
+void intercom_talk_press(lv_event_t *)
+{
+    const bool started = intercom_action != nullptr
+        && intercom_action(nullptr, "talk_start");
+    if (intercom_status_label != nullptr) {
+        lv_label_set_text(
+            intercom_status_label,
+            started ? "Talking - release to listen" : "Microphone unavailable"
+        );
+    }
+}
+
+void intercom_talk_release(lv_event_t *)
+{
+    if (intercom_action != nullptr) intercom_action(nullptr, "talk_stop");
+    if (intercom_status_label != nullptr) {
+        lv_label_set_text(intercom_status_label, "Hold to talk");
+    }
+}
+
+void intercom_hangup(lv_event_t *)
+{
+    if (intercom_action != nullptr) intercom_action(nullptr, "hangup");
+    if (intercom_status_label != nullptr) {
+        lv_label_set_text(intercom_status_label, "Ending call...");
+    }
+}
+
+void intercom_cancel(lv_event_t *)
+{
+    if (intercom_action != nullptr) intercom_action(nullptr, "cancel");
+    close_intercom_overlay(nullptr);
 }
 
 void show_intercom_overlay()
 {
     if (intercom_overlay != nullptr) return;
     intercom_overlay = lv_obj_create(lv_screen_active());
+    intercom_call_overlay = false;
     lv_obj_set_size(intercom_overlay, 650, 650);
     lv_obj_center(intercom_overlay);
     lv_obj_set_style_bg_color(intercom_overlay, lv_color_hex(0x172733), 0);
@@ -481,10 +552,8 @@ void show_intercom_overlay()
     lv_obj_set_style_radius(intercom_overlay, 22, 0);
     lv_obj_set_flex_flow(intercom_overlay, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(
-        intercom_overlay,
-        LV_FLEX_ALIGN_SPACE_EVENLY,
-        LV_FLEX_ALIGN_CENTER,
-        LV_FLEX_ALIGN_CENTER
+        intercom_overlay, LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER
     );
 
     lv_obj_t *title = lv_label_create(intercom_overlay);
@@ -496,7 +565,7 @@ void show_intercom_overlay()
         intercom_status_label,
         intercom_targets.empty()
             ? "No other RoomHub endpoints online"
-            : "Hold a room button to talk"
+            : "Choose a room to call"
     );
     style_high_contrast_text(intercom_status_label);
 
@@ -520,22 +589,15 @@ void show_intercom_overlay()
         lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
         lv_obj_center(label);
         lv_obj_add_event_cb(
-            button,
-            intercom_press,
-            LV_EVENT_PRESSED,
+            button, intercom_call, LV_EVENT_CLICKED,
             reinterpret_cast<void *>(index)
         );
-        lv_obj_add_event_cb(button, intercom_release, LV_EVENT_RELEASED, nullptr);
-        lv_obj_add_event_cb(button, intercom_release, LV_EVENT_PRESS_LOST, nullptr);
     }
 
-    lv_obj_t *close = lv_button_create(intercom_overlay);
-    lv_obj_set_size(close, 180, 64);
-    lv_obj_t *close_label = lv_label_create(close);
-    lv_label_set_text(close_label, LV_SYMBOL_CLOSE " Close");
-    style_high_contrast_text(close_label);
-    lv_obj_center(close_label);
-    lv_obj_add_event_cb(close, close_intercom_overlay, LV_EVENT_CLICKED, nullptr);
+    add_intercom_button(
+        intercom_overlay, LV_SYMBOL_CLOSE " Close", 0x416b7b,
+        close_intercom_overlay
+    );
 }
 
 void send_media_action(lv_event_t *event)
@@ -1342,41 +1404,106 @@ void show_tab5_intercom_targets(
 )
 {
     if (dashboard_grid == nullptr || !bsp_display_lock(0)) return;
-    if (intercom_overlay != nullptr) close_intercom_overlay(nullptr);
+    if (intercom_overlay != nullptr && !intercom_call_overlay) {
+        close_intercom_overlay(nullptr);
+    }
     intercom_targets = targets;
     intercom_action = action;
     if (selected_dashboard_group == "home") render_dashboard_content();
     bsp_display_unlock();
 }
 
+void show_tab5_intercom_outgoing(const std::string &target_room)
+{
+    if (!bsp_display_lock(0)) return;
+    lv_obj_t *panel = create_intercom_panel(360);
+    lv_obj_t *title = lv_label_create(panel);
+    lv_label_set_text(title, LV_SYMBOL_AUDIO " Calling");
+    style_high_contrast_text(title);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_36, 0);
+    intercom_status_label = lv_label_create(panel);
+    const std::string detail = "Waiting for " + target_room;
+    lv_label_set_text(intercom_status_label, detail.c_str());
+    style_high_contrast_text(intercom_status_label);
+    lv_obj_set_style_text_font(intercom_status_label, &lv_font_montserrat_28, 0);
+    add_intercom_button(panel, LV_SYMBOL_CLOSE " Cancel", 0xb33a3a, intercom_cancel);
+    bsp_display_unlock();
+}
+
 void show_tab5_intercom_incoming(const std::string &source_room)
 {
     if (!bsp_display_lock(0)) return;
-    if (intercom_overlay != nullptr) close_intercom_overlay(nullptr);
-    intercom_overlay = lv_obj_create(lv_screen_active());
-    lv_obj_set_size(intercom_overlay, 650, 360);
-    lv_obj_center(intercom_overlay);
-    lv_obj_set_style_bg_color(intercom_overlay, lv_color_hex(0x286b78), 0);
-    lv_obj_set_style_border_color(intercom_overlay, lv_color_hex(0x2bcbba), 0);
-    lv_obj_set_style_border_width(intercom_overlay, 3, 0);
-    lv_obj_set_style_radius(intercom_overlay, 22, 0);
-    lv_obj_set_flex_flow(intercom_overlay, LV_FLEX_FLOW_COLUMN);
+    lv_obj_t *panel = create_intercom_panel(440);
+    lv_obj_t *title = lv_label_create(panel);
+    lv_label_set_text(title, LV_SYMBOL_AUDIO " Incoming call");
+    style_high_contrast_text(title);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_36, 0);
+    intercom_status_label = lv_label_create(panel);
+    const std::string detail = "From " + source_room;
+    lv_label_set_text(intercom_status_label, detail.c_str());
+    style_high_contrast_text(intercom_status_label);
+    lv_obj_set_style_text_font(intercom_status_label, &lv_font_montserrat_28, 0);
+    lv_obj_t *actions = lv_obj_create(panel);
+    lv_obj_set_size(actions, 560, 110);
+    lv_obj_set_style_bg_opa(actions, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(actions, 0, 0);
+    lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(
-        intercom_overlay,
-        LV_FLEX_ALIGN_CENTER,
-        LV_FLEX_ALIGN_CENTER,
-        LV_FLEX_ALIGN_CENTER
+        actions, LV_FLEX_ALIGN_SPACE_EVENLY,
+        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER
     );
-    lv_obj_set_style_pad_row(intercom_overlay, 40, 0);
-    lv_obj_t *icon = lv_label_create(intercom_overlay);
-    lv_label_set_text(icon, LV_SYMBOL_AUDIO);
-    lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
-    lv_obj_set_style_transform_scale(icon, 512, 0);
-    lv_obj_t *label = lv_label_create(intercom_overlay);
-    const std::string text = "Receiving from " + source_room;
-    lv_label_set_text(label, text.c_str());
-    style_high_contrast_text(label);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+    add_intercom_button(actions, LV_SYMBOL_OK " Accept", 0x258b57, intercom_accept);
+    add_intercom_button(actions, LV_SYMBOL_CLOSE " Decline", 0xb33a3a, intercom_decline);
+    bsp_display_unlock();
+}
+
+void show_tab5_intercom_active(const std::string &peer_room)
+{
+    if (!bsp_display_lock(0)) return;
+    lv_obj_t *panel = create_intercom_panel(520);
+    lv_obj_t *title = lv_label_create(panel);
+    lv_label_set_text(title, LV_SYMBOL_AUDIO " Intercom active");
+    style_high_contrast_text(title);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_36, 0);
+    lv_obj_t *peer = lv_label_create(panel);
+    const std::string peer_text = "Connected to " + peer_room;
+    lv_label_set_text(peer, peer_text.c_str());
+    style_high_contrast_text(peer);
+    lv_obj_set_style_text_font(peer, &lv_font_montserrat_28, 0);
+    intercom_status_label = lv_label_create(panel);
+    lv_label_set_text(intercom_status_label, "Hold to talk");
+    style_high_contrast_text(intercom_status_label);
+
+    lv_obj_t *talk = lv_button_create(panel);
+    lv_obj_set_size(talk, 380, 145);
+    lv_obj_set_style_bg_color(talk, lv_color_hex(0x286b78), 0);
+    lv_obj_t *talk_label = lv_label_create(talk);
+    lv_label_set_text(talk_label, LV_SYMBOL_AUDIO " Hold to talk");
+    style_high_contrast_text(talk_label);
+    lv_obj_set_style_text_font(talk_label, &lv_font_montserrat_28, 0);
+    lv_obj_center(talk_label);
+    lv_obj_add_event_cb(talk, intercom_talk_press, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(talk, intercom_talk_release, LV_EVENT_RELEASED, nullptr);
+    lv_obj_add_event_cb(talk, intercom_talk_release, LV_EVENT_PRESS_LOST, nullptr);
+    add_intercom_button(panel, LV_SYMBOL_CLOSE " Hang up", 0xb33a3a, intercom_hangup);
+    bsp_display_unlock();
+}
+
+void show_tab5_intercom_rejected(const std::string &reason)
+{
+    if (!bsp_display_lock(0)) return;
+    lv_obj_t *panel = create_intercom_panel(330);
+    lv_obj_t *title = lv_label_create(panel);
+    lv_label_set_text(title, "Call unavailable");
+    style_high_contrast_text(title);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_36, 0);
+    intercom_status_label = lv_label_create(panel);
+    const std::string detail = reason == "no_answer" ? "No answer"
+        : (reason == "declined" ? "Call declined" : "Room unavailable");
+    lv_label_set_text(intercom_status_label, detail.c_str());
+    style_high_contrast_text(intercom_status_label);
+    lv_obj_set_style_text_font(intercom_status_label, &lv_font_montserrat_28, 0);
+    add_intercom_button(panel, LV_SYMBOL_CLOSE " Close", 0x416b7b, close_intercom_overlay);
     bsp_display_unlock();
 }
 

@@ -58,7 +58,9 @@ struct IntercomTarget {
 
 using DashboardAction = void (*)(const char *entity_id, const char *action, int value);
 using MicrophoneMuteAction = void (*)();
-using IntercomAction = bool (*)(const char *target_endpoint_id, bool start);
+using IntercomAction = bool (*)(
+    const char *target_endpoint_id, const char *action
+);
 using NotificationAction = void (*)(const char *delivery_id, const char *status);
 using NotificationButtonAction = void (*)(
     const char *delivery_id, const char *entity_id
@@ -100,7 +102,10 @@ void show_tab5_intercom_targets(
     const std::vector<IntercomTarget> &targets,
     IntercomAction action
 );
+void show_tab5_intercom_outgoing(const std::string &target_room);
 void show_tab5_intercom_incoming(const std::string &source_room);
+void show_tab5_intercom_active(const std::string &peer_room);
+void show_tab5_intercom_rejected(const std::string &reason);
 void show_tab5_intercom_ended();
 void show_tab5_notification(
     const std::string &delivery_id,

@@ -165,6 +165,48 @@ Purpose:
 Aborts the current audio session without resolving an intent. Core responds
 with `voice.audio.cancelled`.
 
+# Room-to-room intercom
+
+Intercom calls use a server-issued `call_id` and have two phases: `ringing` and
+`active`. Both endpoints must advertise `microphone` and `speaker` capabilities.
+An endpoint can participate in only one call at a time.
+
+The caller sends `intercom.start` with `target_endpoint_id`, `sample_rate`
+(`16000`), `channels` (`1`), and `format` (`pcm_s16le`). Core reserves both
+endpoints, sends `intercom.incoming` to the receiver, and replies with
+`intercom.ringing` to the caller. Both messages include the same `call_id`.
+
+The receiver answers with `intercom.status` containing that `call_id` and a
+`status` of `accepted` or `declined`. Acceptance produces `intercom.active` at
+both endpoints. The call rings for at most 30 seconds; unanswered calls end
+with reason `no_answer` for the caller and `missed` for the receiver.
+
+During an active call either participant may send binary WebSocket frames of
+raw mono 16-bit little-endian PCM. Core routes each frame to the other
+participant. The endpoint UI currently provides half-duplex hold-to-talk so
+only the participant holding its talk control transmits.
+
+Either participant ends the call with `intercom.end` (or aborts it with
+`intercom.cancel`), including the `call_id`. Core sends `intercom.ended` to
+both participants. Disconnecting either endpoint also releases the call.
+
+Example call request:
+
+```json
+{
+  "version": "1.0",
+  "type": "intercom.start",
+  "source": "tab5-01",
+  "target": "roomhub-core",
+  "payload": {
+    "target_endpoint_id": "tab5-02",
+    "sample_rate": 16000,
+    "channels": 1,
+    "format": "pcm_s16le"
+  }
+}
+```
+
 ---
 
 # audio.play

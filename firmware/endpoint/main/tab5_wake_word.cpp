@@ -142,7 +142,7 @@ void wake_word_fetch_task(void *)
                     result->data,
                     static_cast<std::size_t>(result->data_size)
                 )) {
-                roomhub::transport::cancel_intercom_audio();
+                roomhub::transport::cancel_intercom_call();
                 restore_private_listening_state();
             }
             continue;
@@ -389,7 +389,7 @@ void set_tab5_microphone_muted(bool muted)
     if (muted) {
         if (voice_session != nullptr) {
             roomhub::transport::cancel_voice_audio();
-            roomhub::transport::cancel_intercom_audio();
+            roomhub::transport::cancel_intercom_call();
             voice_session->on_failure();
         }
         show_tab5_microphone_muted();
