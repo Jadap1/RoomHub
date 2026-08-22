@@ -43,10 +43,14 @@ class IntercomServiceTests(unittest.IsolatedAsyncioTestCase):
         ringing = await self.service.start("source", self.request())
         self.assertEqual(ringing["type"], "intercom.ringing")
         call_id = ringing["payload"]["call_id"]
-        active = await self.service.target_status(
+        send.reset_mock()
+        acknowledgement = await self.service.target_status(
             "target", {"call_id": call_id, "status": "accepted"}
         )
-        self.assertEqual(active["type"], "intercom.active")
+        self.assertEqual(acknowledgement["type"], "intercom.status.ack")
+        self.assertEqual(send.await_count, 2)
+        self.assertEqual(send.await_args_list[0].args[0], "target")
+        self.assertEqual(send.await_args_list[0].args[1]["type"], "intercom.active")
         self.assertEqual(send.await_args.args[0], "source")
         self.assertEqual(send.await_args.args[1]["type"], "intercom.active")
         return call_id

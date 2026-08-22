@@ -145,24 +145,38 @@ class IntercomService:
         if status == "accepted":
             session.state = "active"
             self._cancel_timeout(session)
+            source = registry.get(session.source_id)
             target = registry.get(session.target_id)
-            active = _message(
+            target_active = _message(
+                "intercom.active",
+                call_id=session.call_id,
+                peer_endpoint_id=session.source_id,
+                peer_name=source.device_name if source else session.source_id,
+                peer_room=source.room if source else "Unknown room",
+            )
+            # Arm the receiver before allowing the caller to send PCM.
+            if not await manager.send(session.target_id, target_active):
+                self._release(session)
+                return self._rejected("target_unavailable")
+            source_active = _message(
                 "intercom.active",
                 call_id=session.call_id,
                 peer_endpoint_id=session.target_id,
                 peer_name=target.device_name if target else session.target_id,
                 peer_room=target.room if target else "Unknown room",
             )
-            if not await manager.send(session.source_id, active):
+            if not await manager.send(session.source_id, source_active):
                 self._release(session)
+                await manager.send(session.target_id, _message(
+                    "intercom.ended",
+                    call_id=session.call_id,
+                    reason="source_unavailable",
+                ))
                 return self._rejected("source_unavailable")
-            source = registry.get(session.source_id)
             return _message(
-                "intercom.active",
+                "intercom.status.ack",
                 call_id=session.call_id,
-                peer_endpoint_id=session.source_id,
-                peer_name=source.device_name if source else session.source_id,
-                peer_room=source.room if source else "Unknown room",
+                status="active",
             )
         if status == "declined":
             self._release(session)

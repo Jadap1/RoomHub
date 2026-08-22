@@ -117,8 +117,9 @@ async def receive_test(url: str, token: str | None, endpoint_id: str) -> None:
                 await keepalive
 
 
-async def tone_test(url: str, target: str, token: str | None) -> None:
-    endpoint_id = "intercom-pc-sender"
+async def tone_test(
+    url: str, target: str, token: str | None, endpoint_id: str
+) -> None:
     async with websockets.connect(url, max_size=65536) as socket:
         await register(socket, endpoint_id, "PC Test Sender", token)
         await socket.send(json.dumps({
@@ -181,7 +182,7 @@ def main() -> None:
     asyncio.run(
         receive_test(args.url, args.token, args.endpoint_id)
         if args.mode == "receive"
-        else tone_test(args.url, args.target, args.token)
+        else tone_test(args.url, args.target, args.token, args.endpoint_id)
     )
 
 
