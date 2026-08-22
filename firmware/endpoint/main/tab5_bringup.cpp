@@ -272,7 +272,9 @@ void on_dashboard_page(lv_event_t *event)
         lv_event_get_user_data(event)
     );
     const auto indices = dashboard_indices_for_group(selected_dashboard_group);
-    const std::size_t page_count = (indices.size() + kDashboardPageSize - 1)
+    const std::size_t item_count = indices.size()
+        + (dashboard_direct_mode ? room_media_players.size() : 0);
+    const std::size_t page_count = (item_count + kDashboardPageSize - 1)
         / kDashboardPageSize;
     if (direction < 0 && selected_dashboard_page > 0) {
         --selected_dashboard_page;
@@ -1053,7 +1055,8 @@ void render_dashboard_content()
     const auto selected_indices = dashboard_indices_for_group(
         selected_dashboard_group
     );
-    if (selected_indices.empty()) {
+    if (selected_indices.empty()
+        && (!dashboard_direct_mode || room_media_players.empty())) {
         selected_dashboard_group = "home";
         selected_dashboard_page = 0;
         render_dashboard_content();
@@ -1092,20 +1095,23 @@ void render_dashboard_content()
     lv_label_set_text(group_title, selected_label);
 
     const auto indices = dashboard_indices_for_group(selected_dashboard_group);
-    const std::size_t page_count = indices.empty() ? 1
-        : (indices.size() + kDashboardPageSize - 1) / kDashboardPageSize;
+    const std::size_t item_count = indices.size()
+        + (dashboard_direct_mode ? room_media_players.size() : 0);
+    const std::size_t page_count = item_count == 0 ? 1
+        : (item_count + kDashboardPageSize - 1) / kDashboardPageSize;
     if (selected_dashboard_page >= page_count) {
         selected_dashboard_page = page_count - 1;
     }
     const std::size_t first = selected_dashboard_page * kDashboardPageSize;
-    const std::size_t last = std::min(first + kDashboardPageSize, indices.size());
+    const std::size_t last = std::min(first + kDashboardPageSize, item_count);
 
     if (indices.empty()) {
         lv_obj_t *empty = lv_label_create(dashboard_grid);
         lv_label_set_text(empty, "No entities in this group");
         style_high_contrast_text(empty);
     }
-    for (std::size_t visible_index = first; visible_index < last; ++visible_index) {
+    const std::size_t entity_last = std::min(last, indices.size());
+    for (std::size_t visible_index = first; visible_index < entity_last; ++visible_index) {
         const std::size_t index = indices[visible_index];
         const auto &entity = dashboard_entities[index];
         lv_obj_t *button = lv_button_create(dashboard_grid);
@@ -1172,6 +1178,55 @@ void render_dashboard_content()
                 on_dashboard_touch,
                 LV_EVENT_CLICKED,
                 const_cast<char *>(dashboard_entity_ids[index].c_str())
+            );
+        }
+    }
+
+    if (dashboard_direct_mode && last > indices.size()) {
+        const std::size_t media_first = first > indices.size()
+            ? first - indices.size() : 0;
+        const std::size_t media_last = std::min(
+            last - indices.size(), room_media_players.size()
+        );
+        for (std::size_t media_index = media_first;
+            media_index < media_last; ++media_index) {
+            const auto &player = room_media_players[media_index];
+            lv_obj_t *button = lv_button_create(dashboard_grid);
+            lv_obj_set_size(button, 220, 142);
+            lv_obj_set_flex_flow(button, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_style_pad_row(button, 24, 0);
+            lv_obj_set_flex_align(
+                button,
+                LV_FLEX_ALIGN_CENTER,
+                LV_FLEX_ALIGN_CENTER,
+                LV_FLEX_ALIGN_CENTER
+            );
+            lv_obj_set_style_bg_color(
+                button,
+                lv_color_hex(player.available ? 0x7b4f78 : 0x3b4652),
+                0
+            );
+            lv_obj_set_style_radius(button, 16, 0);
+            if (!player.available) {
+                lv_obj_set_style_opa(button, LV_OPA_60, 0);
+                lv_obj_add_state(button, LV_STATE_DISABLED);
+            }
+            lv_obj_t *icon = lv_label_create(button);
+            lv_label_set_text(icon, LV_SYMBOL_AUDIO);
+            lv_obj_set_style_text_color(icon, lv_color_hex(0xffffff), 0);
+            lv_obj_set_style_text_font(icon, &lv_font_montserrat_36, 0);
+            lv_obj_t *name = lv_label_create(button);
+            lv_obj_set_width(name, 190);
+            lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+            lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_text_color(name, lv_color_hex(kPrimaryTextColor), 0);
+            lv_obj_set_style_text_font(name, &lv_font_montserrat_28, 0);
+            lv_label_set_text(name, player.name.c_str());
+            lv_obj_add_event_cb(
+                button,
+                select_media_player,
+                LV_EVENT_CLICKED,
+                reinterpret_cast<void *>(media_index)
             );
         }
     }
