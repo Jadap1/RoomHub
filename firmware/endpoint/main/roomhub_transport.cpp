@@ -1622,6 +1622,11 @@ bool start_intercom_talk()
     if (!context.intercom_call_active || roomhub::board::tab5_microphone_muted()) {
         return false;
     }
+    // The Tab5 codec is operated half-duplex for intercom. Close the speaker
+    // stream before capturing microphone PCM, then reopen it on release.
+    if (context.intercom_receiving.exchange(false)) {
+        roomhub::board::stop_tab5_intercom_receive();
+    }
     xStreamBufferReset(context.voice_audio_stream);
     context.intercom_audio_allowed = true;
     return true;
@@ -1629,7 +1634,15 @@ bool start_intercom_talk()
 
 bool stop_intercom_talk()
 {
-    return context.intercom_audio_allowed.exchange(false);
+    const bool was_talking = context.intercom_audio_allowed.exchange(false);
+    if (!was_talking || !context.intercom_call_active) return was_talking;
+    const bool listening = roomhub::board::start_tab5_intercom_receive();
+    context.intercom_receiving = listening;
+    if (!listening) {
+        ESP_LOGE(kTag, "Could not restore intercom listening after talk");
+        context.intercom_end_pending = true;
+    }
+    return was_talking;
 }
 
 bool send_intercom_audio(const std::int16_t *samples, std::size_t byte_count)
