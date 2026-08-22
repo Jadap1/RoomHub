@@ -70,6 +70,7 @@ struct TransportContext {
     std::uint8_t *voice_audio_storage = nullptr;
     SemaphoreHandle_t voice_response_mutex = nullptr;
     VoiceResponse voice_response;
+    SemaphoreHandle_t websocket_send_mutex = nullptr;
     SemaphoreHandle_t firmware_status_mutex = nullptr;
     TaskHandle_t heartbeat_task_handle = nullptr;
     std::string firmware_request_id;
@@ -678,12 +679,31 @@ bool send_text(
     if (message.empty()) {
         return false;
     }
-    return esp_websocket_client_send_text(
+    if (context.websocket_send_mutex == nullptr
+        || xSemaphoreTake(context.websocket_send_mutex, pdMS_TO_TICKS(5500))
+            != pdTRUE) {
+        return false;
+    }
+    const bool sent = esp_websocket_client_send_text(
         client,
         message.c_str(),
         static_cast<int>(message.size()),
         pdMS_TO_TICKS(5000)
     ) == static_cast<int>(message.size());
+    xSemaphoreGive(context.websocket_send_mutex);
+    return sent;
+}
+
+bool send_binary(esp_websocket_client_handle_t client, const void *data, int size)
+{
+    if (context.websocket_send_mutex == nullptr
+        || xSemaphoreTake(context.websocket_send_mutex, pdMS_TO_TICKS(5500))
+            != pdTRUE) return false;
+    const bool sent = esp_websocket_client_send_bin(
+        client, static_cast<const char *>(data), size, pdMS_TO_TICKS(5000)
+    ) == size;
+    xSemaphoreGive(context.websocket_send_mutex);
+    return sent;
 }
 
 void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
@@ -1273,12 +1293,9 @@ void voice_sender_task(void *argument)
             pdMS_TO_TICKS(20)
         );
         if (batch_size > 0) {
-            const bool sent = esp_websocket_client_send_bin(
-                transport.client,
-                reinterpret_cast<const char *>(audio_batch),
-                static_cast<int>(batch_size),
-                pdMS_TO_TICKS(5000)
-            ) == static_cast<int>(batch_size);
+            const bool sent = send_binary(
+                transport.client, audio_batch, static_cast<int>(batch_size)
+            );
             if (!sent) {
                 ESP_LOGW(kTag, "Could not send buffered voice audio data");
                 xStreamBufferReset(transport.voice_audio_stream);
@@ -1329,6 +1346,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     StartResult result;
     context.events = xEventGroupCreate();
     context.voice_response_mutex = xSemaphoreCreateMutex();
+    context.websocket_send_mutex = xSemaphoreCreateMutex();
     context.firmware_status_mutex = xSemaphoreCreateMutex();
     context.voice_audio_stream_state = static_cast<StaticStreamBuffer_t *>(
         heap_caps_calloc(1, sizeof(StaticStreamBuffer_t), MALLOC_CAP_INTERNAL)
@@ -1356,6 +1374,7 @@ StartResult start(const roomhub::config::EndpointConfig &config)
     if (
         context.events == nullptr
         || context.voice_response_mutex == nullptr
+        || context.websocket_send_mutex == nullptr
         || context.firmware_status_mutex == nullptr
         || context.voice_audio_stream == nullptr
     ) {

@@ -66,8 +66,7 @@ async def register(socket, endpoint_id: str, room: str, token: str | None) -> No
                 raise RuntimeError(response.get("payload", {}).get("reason"))
 
 
-async def receive_test(url: str, token: str | None) -> None:
-    endpoint_id = "intercom-pc-test"
+async def receive_test(url: str, token: str | None, endpoint_id: str) -> None:
     async with websockets.connect(url, max_size=65536) as socket:
         await register(socket, endpoint_id, "PC Test Receiver", token)
         keepalive = asyncio.create_task(heartbeat(socket, endpoint_id))
@@ -76,7 +75,7 @@ async def receive_test(url: str, token: str | None) -> None:
         peak = 0
         try:
             try:
-                async with asyncio.timeout(180):
+                async with asyncio.timeout(600):
                     async for frame in socket:
                         if isinstance(frame, bytes):
                             received += len(frame)
@@ -99,10 +98,11 @@ async def receive_test(url: str, token: str | None) -> None:
                                 },
                             }))
                             print(f"ACTIVE: accepted call {call_id}", flush=True)
-                        elif message_type == "intercom.ended" and received:
+                        elif message_type == "intercom.ended":
                             seconds = received / (16000 * 2)
                             print(
-                                f"COMPLETE: {received} PCM bytes, {seconds:.2f}s, peak={peak}",
+                                f"COMPLETE: {received} PCM bytes, {seconds:.2f}s, peak={peak}, "
+                                f"reason={message.get('payload', {}).get('reason')}",
                                 flush=True,
                             )
                             return
@@ -173,12 +173,13 @@ def main() -> None:
     parser.add_argument("mode", choices=("receive", "tone"))
     parser.add_argument("--url", default="ws://192.168.0.70:8000/ws")
     parser.add_argument("--target", default="tab5-01")
+    parser.add_argument("--endpoint-id", default="intercom-pc-test")
     parser.add_argument(
         "--token", help="fresh pairing credential or this peer's saved token"
     )
     args = parser.parse_args()
     asyncio.run(
-        receive_test(args.url, args.token)
+        receive_test(args.url, args.token, args.endpoint_id)
         if args.mode == "receive"
         else tone_test(args.url, args.target, args.token)
     )
