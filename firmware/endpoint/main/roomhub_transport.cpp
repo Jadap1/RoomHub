@@ -25,6 +25,7 @@
 #include "tab5_bringup.hpp"
 #include "tab5_camera.hpp"
 #include "tab5_wake_word.hpp"
+#include "tab5_wireless.hpp"
 
 namespace roomhub::transport {
 namespace {
@@ -517,6 +518,13 @@ std::string registration_message(
         "firmware_version",
         esp_app_get_description()->version
     );
+    const std::string wireless_version =
+        roomhub::board::tab5_wireless_firmware_version();
+    if (!wireless_version.empty()) {
+        cJSON_AddStringToObject(
+            payload, "wireless_firmware_version", wireless_version.c_str()
+        );
+    }
     cJSON *capabilities = cJSON_AddArrayToObject(payload, "capabilities");
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("display"));
     cJSON_AddItemToArray(capabilities, cJSON_CreateString("speaker"));
@@ -903,6 +911,22 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                 valid ? request_id->valuestring : "invalid"
             )) {
                 ESP_LOGW(kTag, "Camera capture command rejected");
+            }
+        } else if (message_type == "wireless.firmware.update") {
+            cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
+            cJSON *path = cJSON_GetObjectItemCaseSensitive(payload, "path");
+            if (cJSON_IsString(path) && path->valuestring != nullptr) {
+                std::string base = transport.roomhub_url;
+                while (!base.empty() && base.back() == '/') base.pop_back();
+                const std::string update_path = path->valuestring;
+                const std::string url = base
+                    + (update_path.empty() || update_path.front() != '/' ? "/" : "")
+                    + update_path;
+                if (!roomhub::board::start_tab5_wireless_firmware_update(url)) {
+                    ESP_LOGW(kTag, "Wireless firmware update command rejected");
+                }
+            } else {
+                ESP_LOGW(kTag, "Invalid wireless firmware update command");
             }
         } else if (message_type == "firmware.update") {
             cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");

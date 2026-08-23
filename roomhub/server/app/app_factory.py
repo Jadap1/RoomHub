@@ -36,6 +36,7 @@ from .services.endpoint_display_preferences_service import (
     endpoint_display_preferences_service,
 )
 from .services.firmware_service import firmware_service
+from .services.wireless_firmware_service import wireless_firmware_service
 from .services.firmware_auth import configured_firmware_token, firmware_token_valid
 from .services.firmware_audit import firmware_audit
 from .services.firmware_deployment_service import firmware_deployment_service
@@ -398,6 +399,101 @@ def create_app(
     @app.get("/firmware/endpoint/deploy/{endpoint_id}")
     async def endpoint_firmware_deployment(endpoint_id: str):
         return firmware_deployment_service.get(endpoint_id) or {"status": "none"}
+
+    @app.put("/firmware/wireless")
+    async def publish_wireless_firmware(
+        request: Request,
+        x_firmware_version: str = Header(),
+        x_roomhub_admin_token: str | None = Header(default=None),
+    ):
+        if configured_firmware_token() is None:
+            raise HTTPException(status_code=503, detail="firmware admin token not configured")
+        if not firmware_token_valid(x_roomhub_admin_token):
+            firmware_audit.record("wireless_publish_denied", client=str(request.client))
+            raise HTTPException(status_code=401, detail="invalid firmware admin token")
+        try:
+            manifest = await asyncio.to_thread(
+                wireless_firmware_service.publish,
+                x_firmware_version,
+                await request.body(),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        firmware_audit.record(
+            "wireless_published",
+            version=manifest.version,
+            size=manifest.size,
+            sha256=manifest.sha256,
+        )
+        return manifest
+
+    @app.get("/firmware/wireless/manifest")
+    async def wireless_firmware_manifest():
+        manifest = wireless_firmware_service.manifest()
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="wireless firmware not published")
+        return manifest
+
+    @app.get("/firmware/wireless/image")
+    async def wireless_firmware_image():
+        manifest = wireless_firmware_service.manifest()
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="wireless firmware not published")
+        return FileResponse(
+            wireless_firmware_service.image_path,
+            media_type="application/octet-stream",
+            filename=f"roomhub-wireless-{manifest.version}.bin",
+        )
+
+    @app.post("/firmware/wireless/deploy/{endpoint_id}")
+    async def deploy_wireless_firmware(
+        endpoint_id: str,
+        request: Request,
+        x_roomhub_admin_token: str | None = Header(default=None),
+    ):
+        if configured_firmware_token() is None:
+            raise HTTPException(status_code=503, detail="firmware admin token not configured")
+        if not firmware_token_valid(x_roomhub_admin_token):
+            firmware_audit.record(
+                "wireless_deploy_denied",
+                endpoint_id=endpoint_id,
+                client=str(request.client),
+            )
+            raise HTTPException(status_code=401, detail="invalid firmware admin token")
+        endpoint = registry.get(endpoint_id)
+        manifest = wireless_firmware_service.manifest()
+        if endpoint is None or not endpoint.connected:
+            raise HTTPException(status_code=409, detail="endpoint not connected")
+        if manifest is None:
+            raise HTTPException(status_code=404, detail="wireless firmware not published")
+        request_id = secrets.token_urlsafe(16)
+        sent = await manager.send(endpoint_id, {
+            "version": "1.0",
+            "type": "wireless.firmware.update",
+            "target": endpoint_id,
+            "payload": {
+                "request_id": request_id,
+                "version": manifest.version,
+                "path": manifest.path,
+                "size": manifest.size,
+                "sha256": manifest.sha256,
+            },
+        })
+        if not sent:
+            raise HTTPException(status_code=409, detail="endpoint unavailable")
+        firmware_audit.record(
+            "wireless_deployed",
+            endpoint_id=endpoint_id,
+            request_id=request_id,
+            version=manifest.version,
+            sha256=manifest.sha256,
+        )
+        return {
+            "status": "sent",
+            "target": endpoint_id,
+            "request_id": request_id,
+            "firmware": manifest,
+        }
 
     @app.post("/notifications")
     @app.post("/api/notifications")

@@ -36,6 +36,19 @@ jobs:
           riscv32-esp-elf-gcc --version | head -n 1
           idf.py build
 
+      - name: Build memory-bounded ESP32-C6 firmware
+        shell: bash
+        run: |
+          source /opt/esp/idf/export.sh
+          python tools/prepare_wireless_firmware.py \
+            firmware/endpoint/managed_components/espressif__esp_hosted/slave \
+            "$RUNNER_TEMP/roomhub-wireless"
+          cd "$RUNNER_TEMP/roomhub-wireless"
+          idf.py set-target esp32c6
+          idf.py build
+          cp build/network_adapter.bin \
+            "$GITHUB_WORKSPACE/firmware/endpoint/roomhub-tab5-c6-1.4.1.bin"
+
       - name: Restore protected signing key
         shell: bash
         env:
@@ -55,6 +68,8 @@ jobs:
             --version "${{ steps.version.outputs.version }}" \
             --download-base-url \
             "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          cp roomhub-tab5-c6-1.4.1.bin dist/
+          sha256sum roomhub-tab5-c6-1.4.1.bin >> dist/SHA256SUMS
 
       - name: Remove restored signing key
         if: always()

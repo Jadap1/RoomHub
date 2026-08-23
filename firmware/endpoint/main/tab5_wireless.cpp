@@ -1,10 +1,13 @@
 #include "tab5_wireless.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
+#include <new>
 
 #include "bsp/m5stack_tab5.h"
 #include "esp_event.h"
+#include "esp_hosted_api.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -27,6 +30,22 @@ esp_event_handler_instance_t wifi_handler = nullptr;
 esp_event_handler_instance_t ip_handler = nullptr;
 bool reconnect_task_started = false;
 roomhub::recovery::Backoff reconnect_backoff(1000, 30000);
+
+void wireless_firmware_update_task(void *argument)
+{
+    std::string *url = static_cast<std::string *>(argument);
+    ESP_LOGI(kTag, "Installing ESP32-C6 wireless firmware");
+    const esp_err_t result = esp_hosted_slave_ota(url->c_str());
+    delete url;
+    if (result != ESP_OK) {
+        ESP_LOGE(
+            kTag,
+            "ESP32-C6 firmware update failed: %s",
+            esp_err_to_name(result)
+        );
+    }
+    vTaskDelete(nullptr);
+}
 
 bool succeeded_or_already_initialized(esp_err_t result)
 {
@@ -135,6 +154,47 @@ bool power_on_tab5_wireless()
     }
     wireless_powered = true;
     ESP_LOGI(kTag, "ESP32-C6 power rail enabled");
+    return true;
+}
+
+std::string tab5_wireless_firmware_version()
+{
+    esp_hosted_coprocessor_fwver_t version{};
+    if (esp_hosted_get_coprocessor_fwversion(&version) != ESP_OK) {
+        return {};
+    }
+    char text[32]{};
+    std::snprintf(
+        text,
+        sizeof(text),
+        "%lu.%lu.%lu",
+        static_cast<unsigned long>(version.major1),
+        static_cast<unsigned long>(version.minor1),
+        static_cast<unsigned long>(version.patch1)
+    );
+    return text;
+}
+
+bool start_tab5_wireless_firmware_update(const std::string &url)
+{
+    if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) {
+        return false;
+    }
+    auto *task_url = new (std::nothrow) std::string(url);
+    if (task_url == nullptr) {
+        return false;
+    }
+    if (xTaskCreate(
+            wireless_firmware_update_task,
+            "c6_firmware",
+            6144,
+            task_url,
+            5,
+            nullptr
+        ) != pdPASS) {
+        delete task_url;
+        return false;
+    }
     return true;
 }
 

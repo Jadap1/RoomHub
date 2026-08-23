@@ -10,6 +10,7 @@ class Endpoint(BaseModel):
     area_id: str | None = None
     capabilities: list[str]
     firmware_version: str | None = None
+    wireless_firmware_version: str | None = None
 
     connected: bool = False
     last_seen: datetime | None = None
