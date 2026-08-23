@@ -17,7 +17,9 @@
 #include "freertos/task.h"
 #include "mbedtls/sha256.h"
 #include "roomhub/version_policy.hpp"
+#include "tab5_audio_service.hpp"
 #include "tab5_bringup.hpp"
+#include "tab5_wake_word.hpp"
 
 namespace roomhub::ota {
 namespace {
@@ -206,6 +208,13 @@ void update_task(void *argument)
     // Give the transport task time to acknowledge the command before the C6
     // network link is dedicated to the firmware HTTP stream.
     vTaskDelay(pdMS_TO_TICKS(750));
+    const bool microphone_was_muted = roomhub::board::tab5_microphone_muted();
+    roomhub::board::interrupt_tab5_audio_for_voice_capture();
+    roomhub::board::set_tab5_microphone_muted(true);
+    roomhub::board::set_tab5_screen_on(false);
+    // Let the audio pipeline and backlight settle before TLS and flash writes
+    // add their peak load. This keeps USB-powered devices above brownout.
+    vTaskDelay(pdMS_TO_TICKS(500));
     ESP_LOGI(kTag, "Installing endpoint firmware %s", request->version.c_str());
     ESP_LOGI(
         kTag,
@@ -225,6 +234,8 @@ void update_task(void *argument)
     }
     ESP_LOGE(kTag, "Firmware update rejected; running image preserved");
     report(*request, "failed", 0, "install_failed");
+    roomhub::board::set_tab5_screen_on(true);
+    roomhub::board::set_tab5_microphone_muted(microphone_was_muted);
     roomhub::board::show_tab5_firmware_failed();
     update_active = false;
     vTaskDelete(nullptr);
