@@ -31,7 +31,7 @@ async def handle_dashboard_activate(message: dict) -> dict:
         "brightness_down", "brightness_up", "brightness_set",
         "percentage_down", "percentage_up",
         "cover_open", "cover_stop", "cover_close",
-        "number_down", "number_up", "select_next",
+        "number_down", "number_up", "number_set", "select_next",
         "media_play_pause", "media_previous", "media_next",
         "media_volume_set", "media_source_next",
     }:
@@ -109,16 +109,21 @@ async def handle_dashboard_activate(message: dict) -> dict:
             "cover_stop": "stop_cover",
             "cover_close": "close_cover",
         }[action]
-    elif action in {"number_down", "number_up"}:
+    elif action in {"number_down", "number_up", "number_set"}:
         if entity.entity_type not in {"number", "input_number"}:
             return _rejected("number_action_requires_number")
-        try:
-            current = float(state.get("state"))
-        except (TypeError, ValueError):
-            return _rejected("number_value_unavailable")
-        step = attributes.get("step", 1)
-        step = step if isinstance(step, (int, float)) and step > 0 else 1
-        target = current + step if action == "number_up" else current - step
+        if action == "number_set":
+            if not isinstance(value, (int, float)):
+                return _rejected("number_value_required")
+            target = float(value)
+        else:
+            try:
+                current = float(state.get("state"))
+            except (TypeError, ValueError):
+                return _rejected("number_value_unavailable")
+            step = attributes.get("step", 1)
+            step = step if isinstance(step, (int, float)) and step > 0 else 1
+            target = current + step if action == "number_up" else current - step
         minimum = attributes.get("min", target)
         maximum = attributes.get("max", target)
         if isinstance(minimum, (int, float)):

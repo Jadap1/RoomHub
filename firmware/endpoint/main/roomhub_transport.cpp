@@ -301,6 +301,8 @@ void show_dashboard_payload(const cJSON *payload)
             ? cJSON_GetObjectItemCaseSensitive(attributes, "percentage") : nullptr;
         const cJSON *current_position = cJSON_IsObject(attributes)
             ? cJSON_GetObjectItemCaseSensitive(attributes, "current_position") : nullptr;
+        const cJSON *numeric_step = cJSON_IsObject(attributes)
+            ? cJSON_GetObjectItemCaseSensitive(attributes, "step") : nullptr;
         if (!cJSON_IsString(entity_id) || !cJSON_IsString(name)
             || !cJSON_IsString(entity_type)) {
             continue;
@@ -328,6 +330,8 @@ void show_dashboard_payload(const cJSON *payload)
                 ? current_position->valueint : 0,
             .numeric_value = numeric_entity && cJSON_IsString(state_value)
                 ? static_cast<float>(std::strtod(state_value->valuestring, nullptr)) : 0.0F,
+            .numeric_step = cJSON_IsNumber(numeric_step)
+                ? static_cast<float>(numeric_step->valuedouble) : 1.0F,
             .has_current_temperature = cJSON_IsNumber(current_temperature) != 0,
             .has_target_temperature = cJSON_IsNumber(target_temperature) != 0,
             .has_brightness = cJSON_IsNumber(brightness) != 0,

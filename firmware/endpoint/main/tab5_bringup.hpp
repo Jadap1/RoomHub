@@ -32,6 +32,7 @@ struct DashboardEntity {
     int percentage = 0;
     int current_position = 0;
     float numeric_value = 0.0F;
+    float numeric_step = 1.0F;
     bool has_current_temperature = false;
     bool has_target_temperature = false;
     bool has_brightness = false;

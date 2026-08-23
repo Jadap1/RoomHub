@@ -46,7 +46,10 @@ unsigned int display_sleep_timeout_seconds = 0;
 std::string configured_dashboard_layout = "grouped";
 bool dashboard_direct_mode = false;
 lv_obj_t *control_overlay = nullptr;
+lv_obj_t *control_detail_label = nullptr;
 std::string selected_control_id;
+int selected_numeric_value = 0;
+int selected_numeric_step = 1;
 std::string selected_dashboard_group = "home";
 std::size_t selected_dashboard_page = 0;
 lv_obj_t *media_overlay = nullptr;
@@ -328,6 +331,20 @@ void send_selected_control(lv_event_t *event)
     const char *action = static_cast<const char *>(lv_event_get_user_data(event));
     if (dashboard_action != nullptr && action != nullptr
         && !selected_control_id.empty()) {
+        if (std::string(action) == "number_down"
+            || std::string(action) == "number_up") {
+            selected_numeric_value += std::string(action) == "number_up"
+                ? selected_numeric_step : -selected_numeric_step;
+            if (control_detail_label != nullptr) {
+                lv_label_set_text_fmt(
+                    control_detail_label, "Value %d", selected_numeric_value
+                );
+            }
+            dashboard_action(
+                selected_control_id.c_str(), "number_set", selected_numeric_value
+            );
+            return;
+        }
         dashboard_action(selected_control_id.c_str(), action, -1);
     }
 }
@@ -353,6 +370,7 @@ void close_control_overlay(lv_event_t *)
     if (control_overlay != nullptr) {
         lv_obj_delete(control_overlay);
         control_overlay = nullptr;
+        control_detail_label = nullptr;
     }
 }
 
@@ -371,6 +389,13 @@ void send_brightness_slider(lv_event_t *event)
 void show_control_overlay(const DashboardEntity &entity)
 {
     selected_control_id = entity.entity_id;
+    selected_numeric_value = static_cast<int>(
+        entity.numeric_value + (entity.numeric_value >= 0.0F ? 0.5F : -0.5F)
+    );
+    selected_numeric_step = static_cast<int>(
+        entity.numeric_step + (entity.numeric_step >= 0.0F ? 0.5F : -0.5F)
+    );
+    if (selected_numeric_step < 1) selected_numeric_step = 1;
     control_overlay = lv_obj_create(lv_screen_active());
     lv_obj_set_size(control_overlay, 650, 430);
     lv_obj_center(control_overlay);
@@ -390,6 +415,7 @@ void show_control_overlay(const DashboardEntity &entity)
     lv_label_set_text(title, entity.name.c_str());
     style_high_contrast_text(title);
     lv_obj_t *detail = lv_label_create(control_overlay);
+    control_detail_label = detail;
     style_high_contrast_text(detail);
     if (entity.entity_type == "climate" && entity.has_current_temperature
         && entity.has_target_temperature) {
@@ -1605,8 +1631,20 @@ void show_tab5_dashboard(
     if (control_overlay != nullptr) {
         for (const auto &entity : dashboard_entities) {
             if (entity.entity_id == selected_control_id) {
-                close_control_overlay(nullptr);
-                show_control_overlay(entity);
+                if ((entity.entity_type == "number"
+                    || entity.entity_type == "input_number")
+                    && control_detail_label != nullptr) {
+                    selected_numeric_value = static_cast<int>(
+                        entity.numeric_value
+                        + (entity.numeric_value >= 0.0F ? 0.5F : -0.5F)
+                    );
+                    lv_label_set_text_fmt(
+                        control_detail_label, "Value %d", selected_numeric_value
+                    );
+                } else {
+                    close_control_overlay(nullptr);
+                    show_control_overlay(entity);
+                }
                 break;
             }
         }

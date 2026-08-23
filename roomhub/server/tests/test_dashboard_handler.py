@@ -186,6 +186,29 @@ class DashboardHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[2].data, {"value": 10})
         self.assertEqual(events[3].command, "select_next")
 
+    async def test_number_set_uses_absolute_target(self):
+        number = Entity(
+            entity_id="number.volume", entity_type="number",
+            name="Volume", area_id="bedroom",
+        )
+        entity_registry.entities[number.entity_id] = number
+        entity_registry.states[number.entity_id] = EntityState(
+            state="65", attributes={"min": 0, "max": 100, "step": 1}
+        )
+        with patch(
+            "app.handlers.dashboard_handler.event_bus.publish", new=AsyncMock()
+        ) as publish:
+            result = await handle_dashboard_activate({
+                "source": "panel",
+                "payload": {
+                    "entity_id": number.entity_id,
+                    "action": "number_set",
+                    "value": 68,
+                },
+            })
+        self.assertEqual(result["payload"]["command"], "set_value")
+        self.assertEqual(publish.await_args.args[0].data, {"value": 68.0})
+
     async def test_media_commands_set_volume_and_cycle_source(self):
         player = Entity(
             entity_id="media_player.bedroom",
