@@ -149,6 +149,43 @@ class DashboardHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(publish.await_args.args[0].data, {"hvac_mode": "cool"})
         self.assertEqual(rejected["type"], "command.rejected")
 
+    async def test_advanced_controls_map_to_home_assistant_services(self):
+        entities = (
+            Entity(entity_id="lock.door", entity_type="lock", name="Door", area_id="bedroom"),
+            Entity(entity_id="button.start", entity_type="button", name="Start", area_id="bedroom"),
+            Entity(entity_id="number.level", entity_type="number", name="Level", area_id="bedroom"),
+            Entity(entity_id="select.mode", entity_type="select", name="Mode", area_id="bedroom"),
+        )
+        entity_registry.entities = {entity.entity_id: entity for entity in entities}
+        entity_registry.states["lock.door"] = EntityState(state="locked")
+        entity_registry.states["number.level"] = EntityState(
+            state="9", attributes={"min": 0, "max": 10, "step": 2}
+        )
+        with patch(
+            "app.handlers.dashboard_handler.event_bus.publish", new=AsyncMock()
+        ) as publish:
+            await handle_dashboard_activate({
+                "source": "panel", "payload": {"entity_id": "lock.door"},
+            })
+            await handle_dashboard_activate({
+                "source": "panel", "payload": {"entity_id": "button.start"},
+            })
+            await handle_dashboard_activate({
+                "source": "panel",
+                "payload": {"entity_id": "number.level", "action": "number_up"},
+            })
+            await handle_dashboard_activate({
+                "source": "panel",
+                "payload": {"entity_id": "select.mode", "action": "select_next"},
+            })
+
+        events = [call.args[0] for call in publish.await_args_list]
+        self.assertEqual(events[0].command, "unlock")
+        self.assertEqual(events[1].command, "press")
+        self.assertEqual(events[2].command, "set_value")
+        self.assertEqual(events[2].data, {"value": 10})
+        self.assertEqual(events[3].command, "select_next")
+
     async def test_media_commands_set_volume_and_cycle_source(self):
         player = Entity(
             entity_id="media_player.bedroom",

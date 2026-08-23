@@ -86,7 +86,15 @@ bool entity_matches_group(const DashboardEntity &entity, const std::string &grou
         || (group == "climate"
             && (entity.entity_type == "climate" || entity.entity_type == "fan"))
         || (group == "actions"
-            && (entity.entity_type == "scene" || entity.entity_type == "script"))
+            && (entity.entity_type == "scene" || entity.entity_type == "script"
+                || entity.entity_type == "button"
+                || entity.entity_type == "input_button"
+                || entity.entity_type == "lock"
+                || entity.entity_type == "number"
+                || entity.entity_type == "input_number"
+                || entity.entity_type == "select"
+                || entity.entity_type == "input_select"))
+        || (group == "switch" && entity.entity_type == "input_boolean")
         || group == entity.entity_type;
 }
 
@@ -128,6 +136,17 @@ uint32_t dashboard_tile_color(const DashboardEntity &entity)
         return entity.state == "open" ? 0x596fa3 : 0x34495e;
     }
     if (entity.entity_type == "scene" || entity.entity_type == "script") {
+        return 0x75579b;
+    }
+    if (entity.entity_type == "lock") {
+        return entity.state == "locked" ? 0x8b3f4a : 0x258b57;
+    }
+    if (entity.entity_type == "input_boolean") {
+        return entity.state == "on" ? 0x238f83 : 0x34495e;
+    }
+    if (entity.entity_type == "button" || entity.entity_type == "input_button"
+        || entity.entity_type == "number" || entity.entity_type == "input_number"
+        || entity.entity_type == "select" || entity.entity_type == "input_select") {
         return 0x75579b;
     }
     return 0x34495e;
@@ -388,6 +407,13 @@ void show_control_overlay(const DashboardEntity &entity)
         lv_label_set_text_fmt(detail, "Position %d%%", entity.current_position);
     } else if (entity.entity_type == "script") {
         lv_label_set_text(detail, "Run this action?");
+    } else if ((entity.entity_type == "number"
+        || entity.entity_type == "input_number") && entity.has_numeric_value) {
+        lv_label_set_text_fmt(detail, "Value %.1f", entity.numeric_value);
+    } else if (entity.entity_type == "lock") {
+        lv_label_set_text(detail, entity.state == "locked" ? "Locked" : "Unlocked");
+    } else if (entity.entity_type == "button" || entity.entity_type == "input_button") {
+        lv_label_set_text(detail, "Press this action?");
     } else {
         lv_label_set_text(detail, entity.state.c_str());
     }
@@ -438,6 +464,17 @@ void show_control_overlay(const DashboardEntity &entity)
         add_control_button(controls, LV_SYMBOL_UP " Open", "cover_open");
         add_control_button(controls, LV_SYMBOL_STOP " Stop", "cover_stop");
         add_control_button(controls, LV_SYMBOL_DOWN " Close", "cover_close");
+    } else if (entity.entity_type == "number" || entity.entity_type == "input_number") {
+        add_control_button(controls, LV_SYMBOL_MINUS, "number_down");
+        add_control_button(controls, LV_SYMBOL_PLUS, "number_up");
+    } else if (entity.entity_type == "select" || entity.entity_type == "input_select") {
+        add_control_button(controls, LV_SYMBOL_NEXT " Next", "select_next");
+    } else if (entity.entity_type == "lock") {
+        add_control_button(
+            controls,
+            entity.state == "locked" ? LV_SYMBOL_EYE_OPEN " Unlock" : "Lock",
+            "activate"
+        );
     } else {
         add_control_button(controls, LV_SYMBOL_PLAY " Run", "activate");
     }
@@ -461,7 +498,8 @@ void on_dashboard_touch(lv_event_t *event)
         if (entity.entity_id != entity_id) {
             continue;
         }
-        if (entity.entity_type == "switch" || entity.entity_type == "scene") {
+        if (entity.entity_type == "switch" || entity.entity_type == "input_boolean"
+            || entity.entity_type == "scene") {
             dashboard_action(entity_id, "activate", -1);
         } else {
             show_control_overlay(entity);
@@ -1155,6 +1193,14 @@ void render_dashboard_content()
             lv_label_set_text(icon, LV_SYMBOL_BARS);
         } else if (entity.entity_type == "scene" || entity.entity_type == "script") {
             lv_label_set_text(icon, LV_SYMBOL_PLAY);
+        } else if (entity.entity_type == "lock") {
+            lv_label_set_text(icon, entity.state == "locked" ? "L" : LV_SYMBOL_EYE_OPEN);
+        } else if (entity.entity_type == "button" || entity.entity_type == "input_button") {
+            lv_label_set_text(icon, LV_SYMBOL_OK);
+        } else if (entity.entity_type == "number" || entity.entity_type == "input_number") {
+            lv_label_set_text(icon, LV_SYMBOL_PLUS);
+        } else if (entity.entity_type == "select" || entity.entity_type == "input_select") {
+            lv_label_set_text(icon, LV_SYMBOL_LIST);
         } else {
             lv_label_set_text(icon, LV_SYMBOL_CHARGE);
         }

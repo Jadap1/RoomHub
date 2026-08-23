@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -304,6 +305,8 @@ void show_dashboard_payload(const cJSON *payload)
             || !cJSON_IsString(entity_type)) {
             continue;
         }
+        const bool numeric_entity = std::string(entity_type->valuestring) == "number"
+            || std::string(entity_type->valuestring) == "input_number";
         entities.push_back({
             .entity_id = entity_id->valuestring,
             .entity_type = entity_type->valuestring,
@@ -323,11 +326,14 @@ void show_dashboard_payload(const cJSON *payload)
             .percentage = cJSON_IsNumber(percentage) ? percentage->valueint : 0,
             .current_position = cJSON_IsNumber(current_position)
                 ? current_position->valueint : 0,
+            .numeric_value = numeric_entity && cJSON_IsString(state_value)
+                ? static_cast<float>(std::strtod(state_value->valuestring, nullptr)) : 0.0F,
             .has_current_temperature = cJSON_IsNumber(current_temperature) != 0,
             .has_target_temperature = cJSON_IsNumber(target_temperature) != 0,
             .has_brightness = cJSON_IsNumber(brightness) != 0,
             .has_percentage = cJSON_IsNumber(percentage) != 0,
             .has_current_position = cJSON_IsNumber(current_position) != 0,
+            .has_numeric_value = numeric_entity && cJSON_IsString(state_value),
         });
     }
     std::vector<roomhub::board::MediaPlayer> media_players;

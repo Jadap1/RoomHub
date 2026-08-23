@@ -31,6 +31,7 @@ async def handle_dashboard_activate(message: dict) -> dict:
         "brightness_down", "brightness_up", "brightness_set",
         "percentage_down", "percentage_up",
         "cover_open", "cover_stop", "cover_close",
+        "number_down", "number_up", "select_next",
         "media_play_pause", "media_previous", "media_next",
         "media_volume_set", "media_source_next",
     }:
@@ -108,6 +109,28 @@ async def handle_dashboard_activate(message: dict) -> dict:
             "cover_stop": "stop_cover",
             "cover_close": "close_cover",
         }[action]
+    elif action in {"number_down", "number_up"}:
+        if entity.entity_type not in {"number", "input_number"}:
+            return _rejected("number_action_requires_number")
+        try:
+            current = float(state.get("state"))
+        except (TypeError, ValueError):
+            return _rejected("number_value_unavailable")
+        step = attributes.get("step", 1)
+        step = step if isinstance(step, (int, float)) and step > 0 else 1
+        target = current + step if action == "number_up" else current - step
+        minimum = attributes.get("min", target)
+        maximum = attributes.get("max", target)
+        if isinstance(minimum, (int, float)):
+            target = max(minimum, target)
+        if isinstance(maximum, (int, float)):
+            target = min(maximum, target)
+        command = "set_value"
+        data = {"value": target}
+    elif action == "select_next":
+        if entity.entity_type not in {"select", "input_select"}:
+            return _rejected("select_action_requires_select")
+        command = "select_next"
     elif action.startswith("media_"):
         if entity.entity_type != "media_player":
             return _rejected("media_action_requires_media_player")
@@ -138,6 +161,10 @@ async def handle_dashboard_activate(message: dict) -> dict:
         command = "turn_on" if state.get("state") == "off" else "turn_off"
     elif entity.entity_type in {"scene", "script"}:
         command = "turn_on"
+    elif entity.entity_type in {"button", "input_button"}:
+        command = "press"
+    elif entity.entity_type == "lock":
+        command = "unlock" if state.get("state") == "locked" else "lock"
     await event_bus.publish(EntityCommandEvent(
         entity_id=entity.entity_id,
         command=command,

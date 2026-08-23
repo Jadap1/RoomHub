@@ -31,11 +31,13 @@ struct DashboardEntity {
     int brightness = 0;
     int percentage = 0;
     int current_position = 0;
+    float numeric_value = 0.0F;
     bool has_current_temperature = false;
     bool has_target_temperature = false;
     bool has_brightness = false;
     bool has_percentage = false;
     bool has_current_position = false;
+    bool has_numeric_value = false;
 };
 
 struct MediaPlayer {

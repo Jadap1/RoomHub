@@ -81,7 +81,11 @@ class RoomDashboardServiceTests(unittest.TestCase):
         )
 
     def test_snapshot_includes_extended_controls_and_compact_attributes(self):
-        entity_types = ("climate", "fan", "cover", "scene", "script")
+        entity_types = (
+            "climate", "fan", "cover", "scene", "script", "lock", "button",
+            "input_button", "input_boolean", "number", "input_number", "select",
+            "input_select",
+        )
         for entity_type in entity_types:
             entity_id = f"{entity_type}.test"
             entity_registry.entities[entity_id] = Entity(
@@ -96,6 +100,10 @@ class RoomDashboardServiceTests(unittest.TestCase):
                     "hvac_modes": ["off", "heat"],
                     "percentage": 50,
                     "current_position": 75,
+                    "min": 0,
+                    "max": 100,
+                    "step": 5,
+                    "options": ["Auto", "Eco"],
                     "ignored": "not sent",
                 },
             )

@@ -13,6 +13,14 @@ SUPPORTED_ENTITY_TYPES = {
     "cover",
     "scene",
     "script",
+    "lock",
+    "button",
+    "input_button",
+    "input_boolean",
+    "number",
+    "input_number",
+    "select",
+    "input_select",
 }
 MANAGEABLE_ENTITY_TYPES = SUPPORTED_ENTITY_TYPES | {"media_player"}
 DISPLAY_ATTRIBUTES = {
@@ -34,6 +42,10 @@ DISPLAY_ATTRIBUTES = {
     "source_list",
     "volume_level",
     "is_volume_muted",
+    "min",
+    "max",
+    "step",
+    "options",
 }
 
 
