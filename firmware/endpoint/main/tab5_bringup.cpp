@@ -409,7 +409,17 @@ void show_control_overlay(const DashboardEntity &entity)
         lv_label_set_text(detail, "Run this action?");
     } else if ((entity.entity_type == "number"
         || entity.entity_type == "input_number") && entity.has_numeric_value) {
-        lv_label_set_text_fmt(detail, "Value %.1f", entity.numeric_value);
+        const int scaled_value = static_cast<int>(
+            entity.numeric_value * 10.0F + (entity.numeric_value >= 0.0F ? 0.5F : -0.5F)
+        );
+        const int absolute_value = scaled_value < 0 ? -scaled_value : scaled_value;
+        lv_label_set_text_fmt(
+            detail,
+            "Value %s%d.%d",
+            scaled_value < 0 ? "-" : "",
+            absolute_value / 10,
+            absolute_value % 10
+        );
     } else if (entity.entity_type == "lock") {
         lv_label_set_text(detail, entity.state == "locked" ? "Locked" : "Unlocked");
     } else if (entity.entity_type == "button" || entity.entity_type == "input_button") {
@@ -1592,6 +1602,15 @@ void show_tab5_dashboard(
     }
     lv_label_set_text(dashboard_area, area_name.c_str());
     render_dashboard_content();
+    if (control_overlay != nullptr) {
+        for (const auto &entity : dashboard_entities) {
+            if (entity.entity_id == selected_control_id) {
+                close_control_overlay(nullptr);
+                show_control_overlay(entity);
+                break;
+            }
+        }
+    }
     bsp_display_unlock();
 }
 
