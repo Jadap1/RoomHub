@@ -47,7 +47,7 @@ jobs:
           idf.py set-target esp32c6
           idf.py build
           cp build/network_adapter.bin \
-            "$GITHUB_WORKSPACE/firmware/endpoint/roomhub-tab5-c6-1.4.1.bin"
+            "$GITHUB_WORKSPACE/firmware/endpoint/roomhub-tab5-c6-1.4.2.bin"
 
       - name: Restore protected signing key
         shell: bash
@@ -68,8 +68,8 @@ jobs:
             --version "${{ steps.version.outputs.version }}" \
             --download-base-url \
             "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
-          cp roomhub-tab5-c6-1.4.1.bin dist/
-          sha256sum roomhub-tab5-c6-1.4.1.bin >> dist/SHA256SUMS
+          cp roomhub-tab5-c6-1.4.2.bin dist/
+          sha256sum roomhub-tab5-c6-1.4.2.bin >> dist/SHA256SUMS
 
       - name: Remove restored signing key
         if: always()

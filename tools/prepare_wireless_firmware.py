@@ -10,6 +10,8 @@ from pathlib import Path
 
 SOURCE_QUEUE = "#define SDIO_SLAVE_QUEUE_SIZE            20"
 ROOMHUB_QUEUE = "#define SDIO_SLAVE_QUEUE_SIZE            5"
+SOURCE_BUFFERS = "#define BUFFER_NUM      \t         20"
+ROOMHUB_BUFFERS = "#define BUFFER_NUM      \t         5"
 
 
 def main() -> None:
@@ -29,20 +31,26 @@ def main() -> None:
 
     driver = destination / "main" / "sdio_slave_api.c"
     contents = driver.read_text(encoding="utf-8")
-    if contents.count(SOURCE_QUEUE) != 1:
-        raise SystemExit("Unexpected ESP-Hosted SDIO queue definition")
-    driver.write_text(contents.replace(SOURCE_QUEUE, ROOMHUB_QUEUE), encoding="utf-8")
+    if contents.count(SOURCE_QUEUE) != 1 or contents.count(SOURCE_BUFFERS) != 1:
+        raise SystemExit("Unexpected ESP-Hosted SDIO queue or buffer definition")
+    driver.write_text(
+        contents.replace(SOURCE_QUEUE, ROOMHUB_QUEUE).replace(
+            SOURCE_BUFFERS, ROOMHUB_BUFFERS
+        ),
+        encoding="utf-8",
+    )
 
     defaults = destination / "sdkconfig.defaults.esp32c6"
     with defaults.open("a", encoding="utf-8") as stream:
         stream.write(
             "\n# RoomHub keeps streaming mode but bounds the C6-to-P4 DMA burst.\n"
             "CONFIG_ESP_SDIO_STREAMING_MODE=y\n"
+            "CONFIG_ESP_SDIO_RX_Q_SIZE=5\n"
         )
 
-    # 1.4.1 identifies the RoomHub queue-bounded derivative of upstream 1.4.0.
+    # 1.4.2 identifies the fully queue-bounded derivative of upstream 1.4.0.
     (destination / "main" / "coprocessor_fw_version.txt").write_text(
-        "1.4.1\n", encoding="utf-8"
+        "1.4.2\n", encoding="utf-8"
     )
 
     print(f"Prepared RoomHub ESP32-C6 firmware at {destination}")
