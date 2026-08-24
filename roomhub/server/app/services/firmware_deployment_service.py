@@ -110,20 +110,6 @@ class FirmwareDeploymentService:
         await asyncio.sleep(0.25)
         return await self.deploy(endpoint_id, manifest)
 
-    async def retry_after_registration(
-        self, endpoint_id: str, running_version: str | None, manifest: FirmwareManifest | None
-    ) -> dict | None:
-        state = self.deployments.get(endpoint_id)
-        if (
-            state is None or manifest is None or running_version == state["version"]
-            or manifest.version != state["version"]
-            or state["status"] not in {"unacknowledged", "failed"}
-            or state["attempts"] >= 3
-        ):
-            return None
-        await asyncio.sleep(0.25)
-        return await self.deploy(endpoint_id, manifest)
-
     def _cancel_timeout(self, endpoint_id: str) -> None:
         task = self._timeouts.pop(endpoint_id, None)
         if task and task is not asyncio.current_task():

@@ -522,6 +522,10 @@ def create_app(
                 event = await websocket.receive()
                 if event["type"] == "websocket.disconnect":
                     break
+                if endpoint_id is not None and not manager.is_current(
+                    endpoint_id, websocket
+                ):
+                    break
 
                 binary = event.get("bytes")
                 if binary is not None:
@@ -670,8 +674,8 @@ def create_app(
         finally:
             await audio.close()
             if endpoint_id:
-                await intercom_service.close_endpoint(endpoint_id)
                 if manager.disconnect(endpoint_id, websocket):
+                    await intercom_service.close_endpoint(endpoint_id)
                     endpoint = registry.get(endpoint_id)
                     if endpoint:
                         endpoint.connected = False

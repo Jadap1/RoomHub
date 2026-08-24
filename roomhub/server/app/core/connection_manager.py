@@ -15,9 +15,17 @@ class ConnectionManager:
         endpoint_id: str,
         websocket: WebSocket
     ):
-
+        previous = self.connections.get(endpoint_id)
         self.connections[endpoint_id] = websocket
         self._send_locks[endpoint_id] = asyncio.Lock()
+        if previous is not None and previous is not websocket:
+            try:
+                await previous.close(
+                    code=4009,
+                    reason="endpoint_reconnected",
+                )
+            except Exception:
+                pass
 
 
     def disconnect(
@@ -40,6 +48,15 @@ class ConnectionManager:
     ):
 
         return self.connections.get(endpoint_id)
+
+
+    def is_current(
+        self,
+        endpoint_id: str,
+        websocket: WebSocket,
+    ) -> bool:
+
+        return self.connections.get(endpoint_id) is websocket
 
 
     async def send(

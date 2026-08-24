@@ -6,12 +6,26 @@ from app.core.connection_manager import ConnectionManager
 class ConnectionManagerTests(unittest.IsolatedAsyncioTestCase):
     async def test_old_socket_cannot_remove_replacement(self):
         manager = ConnectionManager()
-        old_socket = object()
-        replacement = object()
+
+        class Socket:
+            def __init__(self):
+                self.closed = None
+
+            async def close(self, code, reason):
+                self.closed = (code, reason)
+
+        old_socket = Socket()
+        replacement = Socket()
 
         await manager.connect("panel", old_socket)
         await manager.connect("panel", replacement)
 
+        self.assertEqual(
+            old_socket.closed,
+            (4009, "endpoint_reconnected"),
+        )
+        self.assertFalse(manager.is_current("panel", old_socket))
+        self.assertTrue(manager.is_current("panel", replacement))
         self.assertFalse(manager.disconnect("panel", old_socket))
         self.assertIs(manager.get("panel"), replacement)
         self.assertTrue(manager.disconnect("panel", replacement))

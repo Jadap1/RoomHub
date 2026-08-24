@@ -142,6 +142,41 @@ class EndpointDashboardPreferencesTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertEqual(result["status"], "invalid_entities")
 
+    async def test_preferences_are_isolated_between_endpoints_in_same_area(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(database, "DATABASE", Path(directory) / "roomhub.db"):
+                database.initialise_database()
+                for endpoint_id in ("panel-a", "panel-b"):
+                    registry.register(Endpoint(
+                        device_id=endpoint_id,
+                        device_name=endpoint_id,
+                        room="Kitchen",
+                        area_id="kitchen",
+                        capabilities=["display"],
+                        connected=True,
+                    ))
+                entity_registry.entities["light.main"] = Entity(
+                    entity_id="light.main",
+                    entity_type="light",
+                    name="Main",
+                    area_id="kitchen",
+                )
+
+                service = EndpointDashboardPreferencesService()
+                with patch(
+                    "app.services.room_dashboard_service."
+                    "room_dashboard_service.send",
+                    new=AsyncMock(),
+                ):
+                    await service.replace_exclusions("panel-a", {"light.main"})
+
+                self.assertEqual(
+                    service.excluded_entity_ids("panel-a"), {"light.main"}
+                )
+                self.assertEqual(service.excluded_entity_ids("panel-b"), set())
+                self.assertFalse(service.eligible_entities("panel-a")[0]["visible"])
+                self.assertTrue(service.eligible_entities("panel-b")[0]["visible"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,7 +34,8 @@ An empty or factory Tab5 requires one USB bootstrap installation. Download the
 factory image and `SHA256SUMS` from the same RoomHub release and verify its
 checksum before continuing.
 
-The preferred installation method is the RoomHub browser installer:
+The preferred installation method is the
+[RoomHub browser installer](https://jadap1.github.io/RoomHub/):
 
 1. Open the installer in desktop Chrome or Edge using HTTPS.
 2. Connect the Tab5 with a known USB data cable.
@@ -52,8 +53,7 @@ The preferred installation method is the RoomHub browser installer:
 Wi-Fi credentials travel directly from the browser to the Tab5 over Web Serial.
 The installer does not send them to a website or place them in a URL.
 
-Until the browser installer is published, developers can provision from an
-activated ESP-IDF terminal:
+Developers can alternatively provision from an activated ESP-IDF terminal:
 
 ```text
 python firmware/endpoint/tools/provision_endpoint.py --port COM3
@@ -82,6 +82,8 @@ registration; later connections must present the same device credential.
 Repeat the factory installation and provisioning steps for each new Tab5. A
 new endpoint does not disturb existing endpoint assignments or preferences.
 Confirm the new endpoint's area in RoomHub after it first registers.
+When adding a second physical endpoint, complete the
+[multi-device acceptance checklist](MULTI_DEVICE_ACCEPTANCE.md).
 
 ## Updates
 

@@ -51,6 +51,32 @@ class EndpointPairingServiceTests(unittest.TestCase):
             self.assertFalse(result.accepted)
             self.assertEqual(result.reason, "pairing_required")
 
+    def test_same_friendly_name_creates_distinct_endpoint_credentials(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            database, "DATABASE", Path(directory) / "roomhub.db"
+        ):
+            database.initialise_database()
+            service = EndpointPairingService()
+            first = service.create("Bedroom Display", "bedroom")
+            second = service.create("Bedroom Display", "bedroom")
+
+            self.assertNotEqual(first["pairing_token"], second["pairing_token"])
+            self.assertTrue(service.authenticate(
+                "bedroom-display-a", device_proof(
+                    first["pairing_token"], "nonce-a", "bedroom-display-a"
+                ), "nonce-a"
+            ).accepted)
+            self.assertTrue(service.authenticate(
+                "bedroom-display-b", device_proof(
+                    second["pairing_token"], "nonce-b", "bedroom-display-b"
+                ), "nonce-b"
+            ).accepted)
+            self.assertFalse(service.authenticate(
+                "bedroom-display-b", device_proof(
+                    first["pairing_token"], "nonce-c", "bedroom-display-b"
+                ), "nonce-c"
+            ).accepted)
+
     def test_expired_code_and_replayed_challenge_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(
             database, "DATABASE", Path(directory) / "roomhub.db"

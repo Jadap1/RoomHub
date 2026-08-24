@@ -51,6 +51,29 @@ class FirmwareDeploymentServiceTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.03)
         self.assertEqual(service.get("panel")["status"], "unacknowledged")
 
+    async def test_deployment_targets_only_the_selected_endpoint(self):
+        registry.endpoints["panel-b"] = Endpoint(
+            device_id="panel-b", device_name="Panel B", firmware_version="0.7.1",
+            room="Kitchen", capabilities=["display"], connected=True,
+        )
+        service = FirmwareDeploymentService(acknowledgement_timeout=60)
+        manifest = FirmwareManifest(version="0.7.2", size=123, sha256="a" * 64)
+        with patch(
+            "app.services.firmware_deployment_service.manager.get",
+            return_value=object(),
+        ), patch(
+            "app.services.firmware_deployment_service.manager.send",
+            new=AsyncMock(return_value=True),
+        ) as send:
+            deployment = await service.deploy("panel-b", manifest)
+
+        self.assertIsNone(service.get("panel"))
+        self.assertEqual(service.get("panel-b")["request_id"], deployment["request_id"])
+        send.assert_awaited_once()
+        self.assertEqual(send.await_args.args[0], "panel-b")
+        self.assertEqual(send.await_args.args[1]["target"], "panel-b")
+        service._cancel_timeout("panel-b")
+
 
 if __name__ == "__main__":
     unittest.main()
