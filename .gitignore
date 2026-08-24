@@ -34,3 +34,7 @@ Thumbs.db
 /firmware/endpoint/managed_components/
 /firmware/endpoint/sdkconfig
 /firmware/endpoint/sdkconfig.old
+
+# Locally downloaded or assembled release images
+/roomhub-tab5-*.bin
+/.ota-*-url.tmp

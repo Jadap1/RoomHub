@@ -1,0 +1,43 @@
+name: RoomHub release quality gates
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "custom_components/**"
+      - "firmware/endpoint/CMakeLists.txt"
+      - "installer/**"
+      - "roomhub/server/app/config.py"
+      - "roomhub/server/config.yaml"
+      - "tools/check_release_consistency.py"
+      - "tools/check_repository_secrets.py"
+      - ".github/workflows/quality-gates.yml"
+  pull_request:
+    paths:
+      - "custom_components/**"
+      - "firmware/endpoint/CMakeLists.txt"
+      - "installer/**"
+      - "roomhub/server/app/config.py"
+      - "roomhub/server/config.yaml"
+      - "tools/check_release_consistency.py"
+      - "tools/check_repository_secrets.py"
+      - ".github/workflows/quality-gates.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate versions, manifests, translations, and JSON
+        run: python tools/check_release_consistency.py
+      - name: Reject tracked credentials and private keys
+        run: python tools/check_repository_secrets.py
+      - name: Compile the Home Assistant integration
+        run: python -m compileall -q custom_components/roomhub

@@ -22,8 +22,8 @@ Release maintainers must also follow the [security and credential policy](docs/S
 ## Home Assistant integration
 
 The `custom_components/roomhub` integration exposes each registered endpoint
-as a Home Assistant device with a screen switch, volume slider, connectivity
-binary sensor, and firmware sensor. Install this repository as a HACS custom
+as a Home Assistant device with connectivity, screen, volume, microphone,
+battery, firmware, and camera snapshot entities. Install this repository as a HACS custom
 integration (category **Integration**), restart Home Assistant, then add
 **RoomHub** from **Settings → Devices & services**. The default add-on URL is
 `http://cf9aeebe-roomhub:8000`; the host LAN URL can be used if add-on DNS is
@@ -56,7 +56,7 @@ WAL/SHM sidecars are runtime files and are not tracked by Git.
 
 ## API
 
-The current read-only discovery endpoints are:
+The current discovery and control endpoints include:
 
 - `GET /health`
 - `GET /entities`
@@ -167,6 +167,10 @@ loads application options from `/data/options.json` by default. Set
 ## Project documentation
 
 The design goals and architecture are documented under [`docs`](docs/).
+The current pre-1.0 product baseline is recorded in the
+[supported-feature matrix](docs/SUPPORTED_FEATURES.md).
+Release candidates are evaluated against the
+[release checklist](docs/RELEASE_CHECKLIST.md).
 
 ## Endpoint firmware
 
