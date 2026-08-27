@@ -1017,9 +1017,14 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
                 roomhub::board::show_tab5_intercom_incoming(
                     transport.intercom_peer_room
                 );
-                ESP_LOGI(kTag, "Incoming intercom call is ringing");
+                const bool audible = roomhub::board::play_tab5_intercom_ring();
+                ESP_LOGI(
+                    kTag, "Incoming intercom call is ringing (%s)",
+                    audible ? "audible" : "visual only"
+                );
             }
         } else if (message_type == "intercom.active") {
+            roomhub::board::stop_tab5_intercom_ring();
             const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             const cJSON *call_id = cJSON_GetObjectItemCaseSensitive(payload, "call_id");
             const cJSON *peer_room = cJSON_GetObjectItemCaseSensitive(payload, "peer_room");
@@ -1040,6 +1045,7 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             );
             ESP_LOGI(kTag, "Intercom call became active");
         } else if (message_type == "intercom.ended") {
+            roomhub::board::stop_tab5_intercom_ring();
             transport.intercom_audio_allowed = false;
             transport.intercom_call_active = false;
             transport.intercom_call_id.clear();
@@ -1051,6 +1057,7 @@ void handle_data(TransportContext &transport, esp_websocket_event_data_t &data)
             roomhub::board::show_tab5_intercom_ended();
             ESP_LOGI(kTag, "Intercom call ended");
         } else if (message_type == "intercom.rejected") {
+            roomhub::board::stop_tab5_intercom_ring();
             const cJSON *payload = cJSON_GetObjectItemCaseSensitive(message, "payload");
             const cJSON *reason = cJSON_GetObjectItemCaseSensitive(payload, "reason");
             transport.intercom_audio_allowed = false;
@@ -1669,6 +1676,7 @@ bool respond_intercom_call(bool accept)
     if (!voice_transport_ready() || context.intercom_call_id.empty()) {
         return false;
     }
+    roomhub::board::stop_tab5_intercom_ring();
     return send_text(
         context.client,
         intercom_status_message(

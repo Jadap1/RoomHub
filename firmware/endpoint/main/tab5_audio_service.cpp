@@ -39,9 +39,13 @@ std::atomic_bool cancel_requested{false};
 std::atomic_bool service_started{false};
 std::atomic_int output_volume{65};
 std::atomic_bool intercom_receive_active{false};
+std::atomic_bool intercom_ring_active{false};
+std::atomic_bool intercom_ring_cancel{false};
 std::int16_t *intercom_pcm_buffer = nullptr;
 constexpr std::size_t kMaximumIntercomFrameBytes = 8192;
 constexpr std::int32_t kIntercomReceiveGain = 3;
+constexpr std::uint32_t kIntercomRingToken =
+    std::numeric_limits<std::uint32_t>::max() - 1;
 AudioEventCallback event_callback = nullptr;
 
 Record *find_record(std::uint32_t token)
@@ -128,6 +132,97 @@ void audio_service_task(void *)
     }
 }
 
+void intercom_ring_task(void *)
+{
+    constexpr int kSampleRate = 16000;
+    constexpr std::array<int, 5> frequencies{784, 0, 988, 0, 784};
+    constexpr std::array<int, 5> durations_ms{180, 70, 180, 70, 220};
+    std::array<std::int16_t, 320> samples{};
+
+    bool claimed = false;
+    for (int attempt = 0; attempt < 12 && !claimed; ++attempt) {
+        if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            if (playing_token.load() == 0 && !intercom_receive_active.load()) {
+                playing_token = kIntercomRingToken;
+                playing_priority = static_cast<std::uint8_t>(
+                    roomhub::audio::Priority::intercom
+                );
+                claimed = true;
+            }
+            xSemaphoreGive(mutex);
+        }
+        if (!claimed) vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    esp_codec_dev_sample_info_t format{};
+    format.sample_rate = kSampleRate;
+    format.channel = 1;
+    format.bits_per_sample = 16;
+    const bool speaker_enabled = claimed
+        && bsp_feature_enable(BSP_FEATURE_SPEAKER, true) == ESP_OK;
+    const bool codec_opened = speaker_enabled
+        && esp_codec_dev_open(speaker_handle, &format) == ESP_CODEC_DEV_OK;
+    const bool opened = codec_opened
+        && esp_codec_dev_set_out_vol(
+            speaker_handle,
+            std::clamp(output_volume.load(), 0, 100)
+        ) == ESP_CODEC_DEV_OK;
+
+    if (opened) {
+        std::uint32_t phase = 0;
+        for (std::size_t segment = 0; segment < frequencies.size(); ++segment) {
+            int remaining = durations_ms[segment] * kSampleRate / 1000;
+            const std::uint32_t increment = frequencies[segment] == 0 ? 0
+                : static_cast<std::uint32_t>(
+                    (static_cast<std::uint64_t>(frequencies[segment]) << 32)
+                    / kSampleRate
+                );
+            while (remaining > 0 && !intercom_ring_cancel.load()) {
+                const int count = std::min(
+                    remaining, static_cast<int>(samples.size())
+                );
+                for (int index = 0; index < count; ++index) {
+                    if (increment == 0) {
+                        samples[index] = 0;
+                        continue;
+                    }
+                    phase += increment;
+                    const std::uint32_t position = phase >> 16;
+                    const std::int32_t triangle = position < 32768
+                        ? static_cast<std::int32_t>(position * 2) - 32768
+                        : 98303 - static_cast<std::int32_t>(position * 2);
+                    samples[index] = static_cast<std::int16_t>(triangle / 3);
+                }
+                if (esp_codec_dev_write(
+                        speaker_handle, samples.data(),
+                        count * static_cast<int>(sizeof(std::int16_t))
+                    ) != ESP_CODEC_DEV_OK) {
+                    remaining = 0;
+                    break;
+                }
+                remaining -= count;
+            }
+        }
+    }
+    if (codec_opened) {
+        esp_codec_dev_close(speaker_handle);
+    }
+    if (speaker_enabled) {
+        bsp_feature_enable(BSP_FEATURE_SPEAKER, false);
+    }
+
+    if (claimed && xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (playing_token.load() == kIntercomRingToken) {
+            playing_token = 0;
+            playing_priority = 0;
+        }
+        xSemaphoreGive(mutex);
+    }
+    intercom_ring_cancel = false;
+    intercom_ring_active = false;
+    vTaskDelete(nullptr);
+}
+
 }  // namespace
 
 void set_tab5_audio_event_callback(AudioEventCallback callback)
@@ -143,6 +238,33 @@ void set_tab5_output_volume(int volume)
 int tab5_output_volume()
 {
     return output_volume.load();
+}
+
+bool play_tab5_intercom_ring()
+{
+    if (!service_started || output_volume.load() == 0
+        || intercom_ring_active.exchange(true)) {
+        return false;
+    }
+    intercom_ring_cancel = false;
+    if (playing_token.load() != 0
+        && playing_priority.load() < static_cast<std::uint8_t>(
+            roomhub::audio::Priority::intercom
+        )) {
+        cancel_requested = true;
+    }
+    if (xTaskCreate(
+            intercom_ring_task, "intercom_ring", 4096, nullptr, 6, nullptr
+        ) != pdPASS) {
+        intercom_ring_active = false;
+        return false;
+    }
+    return true;
+}
+
+void stop_tab5_intercom_ring()
+{
+    intercom_ring_cancel = true;
 }
 
 bool start_tab5_intercom_receive()
