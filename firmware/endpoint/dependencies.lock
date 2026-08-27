@@ -10,7 +10,7 @@ dependencies:
       require: public
       version: ^0.1.4
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.1.0
   espressif/cjson:
@@ -131,7 +131,7 @@ dependencies:
       require: private
       version: '>=4.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.5.11
   espressif/esp_h264:
@@ -161,7 +161,7 @@ dependencies:
       require: private
       version: '>=4.4.2'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.2.1
   espressif/esp_io_expander_pi4ioe5v6408:
@@ -175,7 +175,7 @@ dependencies:
       require: private
       version: '>=5.2'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.0.1
   espressif/esp_ipa:
@@ -201,7 +201,7 @@ dependencies:
       require: private
       version: '>=5.3'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32p4
@@ -217,7 +217,7 @@ dependencies:
       require: private
       version: '>=5.4'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32p4
@@ -243,7 +243,7 @@ dependencies:
       require: private
       version: '>=5.2'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.2.0~3
   espressif/esp_lcd_touch_st7123:
@@ -261,7 +261,7 @@ dependencies:
       require: private
       version: '>=4.4.2'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.0.2
   espressif/esp_lvgl_port:
@@ -275,7 +275,7 @@ dependencies:
       require: public
       version: '>=8,<10'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 2.8.0~1
   espressif/esp_sccb_intf:
@@ -331,7 +331,7 @@ dependencies:
       - if: target in [esp32p4, esp32s3]
       version: 2.4.*
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32p4
@@ -386,58 +386,45 @@ dependencies:
       type: service
     version: 1.5.2
   espressif/m5stack_tab5:
-    component_hash: 215ca8dc3b7886fbb87b1b5502abc9b1bd055aa5191308ce85788102ab85de67
     dependencies:
-    - name: espressif/bmi270
-      registry_url: https://components.espressif.com
-      require: public
-      version: '*'
-    - name: espressif/esp_io_expander
-      registry_url: https://components.espressif.com
-      require: public
-      version: '*'
-    - name: espressif/esp_io_expander_pi4ioe5v6408
-      registry_url: https://components.espressif.com
-      require: public
-      version: '*'
-    - name: espressif/esp_lcd_ili9881c
-      registry_url: https://components.espressif.com
-      require: private
-      version: '*'
     - name: espressif/esp_codec_dev
-      registry_url: https://components.espressif.com
-      require: public
+      public: true
       version: ~1.5
     - name: espressif/esp_video
-      registry_url: https://components.espressif.com
-      require: public
+      public: true
       version: ~2.0
+    - name: espressif/bmi270
+      public: true
+      version: '*'
+    - name: espressif/esp_io_expander
+      public: true
+      version: '*'
+    - name: espressif/esp_io_expander_pi4ioe5v6408
+      public: true
+      version: '*'
+    - name: espressif/esp_lcd_ili9881c
+      public: false
+      version: '*'
     - name: espressif/esp_lcd_st7123
-      registry_url: https://components.espressif.com
-      require: private
+      public: false
       version: '*'
     - name: espressif/esp_lcd_touch_gt911
-      registry_url: https://components.espressif.com
-      require: private
-      version: '*'
+      public: false
+      version: 1.2.0~3
     - name: espressif/esp_lcd_touch_st7123
-      registry_url: https://components.espressif.com
-      require: private
+      public: false
       version: '*'
     - name: espressif/esp_lvgl_port
-      registry_url: https://components.espressif.com
-      require: public
-      version: ^2
+      public: true
+      version: 2.8.0~1
     - name: idf
-      require: private
       version: '>=5.4'
     - name: espressif/usb
-      registry_url: https://components.espressif.com
-      require: public
+      public: true
       version: ^1
     source:
-      registry_url: https://components.espressif.com/
-      type: service
+      path: D:\Projects\RoomHub\firmware\endpoint\components\m5stack_tab5
+      type: local
     targets:
     - esp32p4
     version: 1.2.0~1
@@ -511,15 +498,25 @@ dependencies:
       type: service
     version: 9.5.0
 direct_dependencies:
+- espressif/bmi270
 - espressif/esp-sr
 - espressif/esp_audio_codec
+- espressif/esp_codec_dev
 - espressif/esp_hosted
+- espressif/esp_io_expander
+- espressif/esp_io_expander_pi4ioe5v6408
+- espressif/esp_lcd_ili9881c
+- espressif/esp_lcd_st7123
+- espressif/esp_lcd_touch_gt911
+- espressif/esp_lcd_touch_st7123
+- espressif/esp_lvgl_port
+- espressif/esp_video
 - espressif/esp_websocket_client
 - espressif/esp_wifi_remote
 - espressif/m5stack_tab5
 - espressif/usb
 - idf
 - lvgl/lvgl
-manifest_hash: 144743e8c7a6c9bcc29f9875ab22de423506b11050a55c319f7efc2f1079d55f
+manifest_hash: bc846a45496a2bde4b0eddaf37d60fba4291664a80eac800d1eaa5b5d6f529d5
 target: esp32p4
 version: 2.0.0
