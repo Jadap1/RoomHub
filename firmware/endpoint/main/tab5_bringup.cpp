@@ -1423,7 +1423,17 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
     if (!reset_display_and_touch()) {
         ESP_LOGW(kTag, "Continuing after display reset failure");
     }
-    lv_display_t *display = bsp_display_start();
+    bsp_display_cfg_t display_config = {
+        .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
+        .buffer_size = BSP_LCD_H_RES * CONFIG_BSP_LCD_DRAW_BUF_HEIGHT,
+        .double_buffer = true,
+        .flags = {
+            .buff_dma = true,
+            .buff_spiram = true,
+            .sw_rotate = true,
+        },
+    };
+    lv_display_t *display = bsp_display_start_with_config(&display_config);
     tab5_display = display;
     result.display_ready = display != nullptr;
     result.touch_ready = (
