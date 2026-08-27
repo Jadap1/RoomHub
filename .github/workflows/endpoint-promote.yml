@@ -69,7 +69,7 @@ jobs:
         run: gh release edit "${{ inputs.tag }}" --draft=false
 
       - name: Assemble installer site
-        run: cp release/manifest.json installer/manifest.json
+        run: python tools/prepare_installer_site.py release installer
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

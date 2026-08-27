@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "installer/**"
+      - "tools/prepare_installer_site.py"
+      - "tools/test_prepare_installer_site.py"
       - ".github/workflows/installer-pages.yml"
   workflow_dispatch:
 
@@ -30,8 +32,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir release
-          gh release download --pattern manifest.json --dir release
-          cp release/manifest.json installer/manifest.json
+          gh release download --pattern manifest.json --pattern '*-factory.bin' --dir release
+          python tools/prepare_installer_site.py release installer
+
+      - name: Test installer site assembly
+        run: python -m unittest tools/test_prepare_installer_site.py
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
