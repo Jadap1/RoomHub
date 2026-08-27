@@ -9,12 +9,44 @@
 #include "bsp/m5stack_tab5.h"
 #include "esp_codec_dev.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "lvgl.h"
 
 namespace roomhub::board {
 namespace {
 
 constexpr char kTag[] = "roomhub_tab5";
+
+bool reset_display_and_touch()
+{
+    esp_io_expander_handle_t expander = bsp_io_expander_init();
+    if (expander == nullptr) {
+        ESP_LOGE(kTag, "Could not initialise the display reset expander");
+        return false;
+    }
+    constexpr uint32_t reset_pins = BSP_LCD_EN | BSP_TOUCH_EN;
+    esp_err_t result = esp_io_expander_set_dir(
+        expander, reset_pins, IO_EXPANDER_OUTPUT
+    );
+    result |= esp_io_expander_set_output_mode(
+        expander, reset_pins, IO_EXPANDER_OUTPUT_MODE_PUSH_PULL
+    );
+    result |= esp_io_expander_set_level(expander, reset_pins, 0);
+    if (result != ESP_OK) {
+        ESP_LOGE(kTag, "Could not assert the display reset lines");
+        return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+    result = esp_io_expander_set_level(expander, reset_pins, 1);
+    if (result != ESP_OK) {
+        ESP_LOGE(kTag, "Could not release the display reset lines");
+        return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+    ESP_LOGI(kTag, "LCD and touch reset completed through PI4IO");
+    return true;
+}
 
 esp_codec_dev_handle_t microphone = nullptr;
 esp_codec_dev_handle_t speaker = nullptr;
@@ -1388,6 +1420,9 @@ Tab5BringUpResult initialize_tab5(bool endpoint_provisioned)
         }
     }
 
+    if (!reset_display_and_touch()) {
+        ESP_LOGW(kTag, "Continuing after display reset failure");
+    }
     lv_display_t *display = bsp_display_start();
     tab5_display = display;
     result.display_ready = display != nullptr;
